@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<extension key="invoicehelper" type="module">
+  <file>invoicehelper</file>
+  <name>Invoice Helper</name>
+  <description>Add extra options to the Email Invoice screen, including to/cc fields and better support for tokens</description>
+  <license>AGPL-3.0</license>
+  <maintainer>
+    <author>Mathieu Lutfy</author>
+    <email>mathieu@symbiotic.coop</email>
+  </maintainer>
+  <urls>
+    <url desc="Main Extension Page">https://lab.civicrm.org/extensions/invoicehelper</url>
+    <url desc="Documentation">https://lab.civicrm.org/extensions/invoicehelper</url>
+    <url desc="Support">https://lab.civicrm.org/extensions/invoicehelper/issues</url>
+    <url desc="Licensing">https://www.gnu.org/licenses/agpl-3.0.html</url>
+  </urls>
+  <releaseDate>2019-07-03</releaseDate>
+  <version>1.0</version>
+  <develStage>stable</develStage>
+  <compatibility>
+    <ver>5.0</ver>
+  </compatibility>
+  <comments></comments>
+  <civix>
+    <namespace>CRM/Invoicehelper</namespace>
+  </civix>
+</extension>

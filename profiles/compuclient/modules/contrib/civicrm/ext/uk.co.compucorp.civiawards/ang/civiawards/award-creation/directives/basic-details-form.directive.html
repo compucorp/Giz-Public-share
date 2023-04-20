@@ -1,0 +1,87 @@
+<form name="basic_details_form" class="form-horizontal civiawards__award__basic-details">
+  <div class="form-group">
+    <label class="col-sm-3 control-label required-mark">
+      {{ts('Subtype')}}
+    </label>
+    <div class="col-sm-5">
+      <input class="form-control"
+        ng-model="additionalDetails.awardSubtype"
+        crm-ui-select="{
+          allowClear: true,
+          placeholder: 'Subtype',
+          data: awardSubtypeSelect2Options
+        }"
+        required
+        ng-minlength="1"
+      />
+    </div>
+  </div>
+  <div class="form-group">
+    <label class="col-sm-3 control-label required-mark">
+      {{ts('Title')}}
+    </label>
+    <div class="col-sm-5">
+      <input
+        type="text" ng-model="basicDetails.title" required class="form-control"
+        ng-minlength="1" placeholder="{{ts('Award Title')}}"/>
+    </div>
+  </div>
+  <div class="form-group">
+    <label class="col-sm-3 control-label">
+      {{ts('Description')}}
+    </label>
+    <div class="col-sm-5">
+      <textarea
+        type="textarea" ng-model="basicDetails.description" class="form-control"
+        placeholder="{{ts('Description')}}" rows="3">
+      </textarea>
+    </div>
+  </div>
+  <div class="form-group">
+    <label class="col-sm-3 control-label required-mark">
+      {{ts('Manager')}}
+    </label>
+    <div class="col-sm-5">
+      <input class="form-control"
+        ng-model="additionalDetails.awardManagers"
+        placeholder="{{ts('Manager')}}"
+        crm-entityref="{
+          create: true,
+          entity: 'Contact',
+          select: { multiple: true, allowClear: true }
+        }"
+        required
+        ng-minlength="1"
+      />
+    </div>
+  </div>
+  <div class="form-group">
+    <label class="col-sm-3 control-label required-mark">{{ts('Start Date')}}</label>
+    <div class="col-sm-5">
+      <input
+        required
+        crm-ui-datepicker="{time: false}"
+        ng-model="additionalDetails.startDate" ng-placeholder="ts('Start Date')"/>
+    </div>
+  </div>
+  <div class="form-group">
+    <label class="col-sm-3 control-label">{{ts('End Date')}}</label>
+    <div class="col-sm-5">
+      <input
+        crm-ui-datepicker="{time: false}"
+        ng-model="additionalDetails.endDate" ng-placeholder="ts('End Date')"/>
+    </div>
+  </div>
+  <div class="form-group">
+    <label class="col-sm-3 control-label">{{ts('Is Template?')}}</label>
+    <div class="col-sm-5">
+      <input type="checkbox" ng-model="additionalDetails.isTemplate"/>
+    </div>
+  </div>
+  <div class="form-group">
+    <label class="col-sm-3 control-label">{{ts('Enabled?')}}</label>
+    <div class="col-sm-5">
+      <input type="checkbox" ng-model="basicDetails.isEnabled"/>
+    </div>
+  </div>
+</form>

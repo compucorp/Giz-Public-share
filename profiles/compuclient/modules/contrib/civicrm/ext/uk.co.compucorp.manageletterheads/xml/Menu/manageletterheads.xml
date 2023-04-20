@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<menu>
+  <item>
+    <path>civicrm/letterheads/list</path>
+    <page_callback>CRM_ManageLetterheads_Page_LetterheadsListPage</page_callback>
+    <title>Letterheads List</title>
+    <access_arguments>manage letterheads</access_arguments>
+  </item>
+  <item>
+    <path>civicrm/letterheads/form</path>
+    <page_callback>CRM_ManageLetterheads_Form_LetterheadForm</page_callback>
+    <title>Create Letterhead</title>
+    <access_arguments>manage letterheads</access_arguments>
+  </item>
+</menu>

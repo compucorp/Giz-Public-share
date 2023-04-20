@@ -1,0 +1,1227 @@
+<?php
+
+/**
+ * Implements hook_webform_submission_insert.
+ *
+ * Creates the payment plan Remaining upfront contributions
+ * if the webform is configured to create a payment plan.
+ *
+ * @param $node
+ * @param $submission
+ */
+function webform_civicrm_membership_extras_webform_submission_insert($node, $submission) {
+  if (!_membershipextras_isCivicrmWebform($node)) {
+    return;
+  }
+
+  $contributionRecurId = _membershipextras_getPaymentPlanRecurContribution($node);
+
+  if (!empty($contributionRecurId)) {
+    civicrm_initialize();
+
+    CRM_MembershipExtras_WebformAPI_RecurringContributionLineItemCreator::create($contributionRecurId);
+    module_invoke_all('webformmembershipextras_preCreatingUpfrontContributions', $node, $contributionRecurId);
+    CRM_MembershipExtras_WebformAPI_UpfrontContributionsCreator::create($contributionRecurId);
+    CRM_MembershipExtras_WebformAPI_PaymentPlanActivation::activateOnlyLast($contributionRecurId);
+    CRM_MembershipExtras_WebformAPI_PaymentPlanNextContributionDateUpdater::update($contributionRecurId);
+  }
+
+  $discountCodeDetails = _membershipextras_getSubmittedDiscountCodeDetails($node, $submission);
+  if ($discountCodeDetails) {
+    _membershipextras_updateDiscountCodeUsage($discountCodeDetails, $node);
+  }
+}
+
+/**
+ * Implements hook_civicrm_apiWrappers().
+ *
+ * @param $wrappers
+ * @param $apiRequest
+ */
+function webform_civicrm_membership_extras_civicrm_apiWrappers(&$wrappers, $apiRequest) {
+  // prevent executing this for API v4 calls
+  if (is_object($apiRequest)) {
+    return;
+  }
+
+  // Add custom civicrm api wrapper to alter line item price
+  $wrappers[] = new wf_me_discount_civicrm_apiwrapper();
+
+  // The deployment failed because the following class wasn't loaded.
+  // I think it is related to the cache wasn't cleared and hence no re-read
+  // for the info file to load the following file.
+  if (class_exists('wf_me_prorated_billing_apiwrapper')) {
+    $wrappers[] = new wf_me_prorated_billing_apiwrapper();
+  }
+
+}
+
+
+/**
+ * Implements hook_form_alter().
+ */
+function webform_civicrm_membership_extras_form_alter(&$form, &$form_state, $form_id) {
+  if ($form_id == 'wf_crm_configure_form') {
+    wf_me_wf_crm_configure_form_alter_handler($form, $form_state, $form_id);
+  }
+
+  if (strpos($form_id, 'webform_client_form_') !== FALSE) {
+    wf_me_webform_client_form_alter_handler($form, $form_state, $form_id);
+  }
+
+  _webform_civicrm_membership_extras_prorated_billing_form_alter_handler($form, $form_state, $form_id);
+}
+
+/**
+ * Sets the number of terms to 1 for memberships with manually entered dates.
+ *
+ * First, get the list of manually entered dates memberships. The function
+ * _webform_civicrm_membership_extras_get_membership_dates_from_inputs_by_name
+ * returns a list of the submitted start dates if there is any
+ *   [ 'civicrm_1_membership_1' => '2021-9-8',
+ *     'civicrm_1_membership_2' => '2021-9-8' ]
+ * Then we convert it to an array of membership numbers
+ *   [ "1" , "2" ]
+ *
+ * Second, Loop over the membership data stored in webform_civicrm and sets the
+ * num_terms to "1" if the membership has a manually entered dates.
+ *
+ * $form['#node']->webform_civicrm['data']['membership']
+ * [
+ *   "1" => [
+ *     "number_of_membership" => "3"
+ *     "membership" => [
+ *       ['status_id' => '1', 'num_terms' => 0, 'auto_renew' => '1'],
+ *       ['status_id' => '1', 'num_terms' => 0, 'auto_renew' => '1'],
+ *       ['status_id' => '1', 'num_terms' => "1", 'auto_renew' => '1'],
+ *     ],
+ *   ],
+ *   "2" => [ "number_of_membership" => "0" ]
+ * ]
+ *
+ * The above sample data for a form that has three memberships configured and
+ * two of them has the option manually entered dates for number of terms.
+ *
+ * @param $form
+ * @param $form_state
+ */
+function _webform_civicrm_membership_extras_set_number_of_terms_for_manually_entered_dates_memberships($form, $form_state): void {
+  $membership_start_dates = _webform_civicrm_membership_extras_get_membership_dates_from_inputs_by_name($form, $form_state, 'start_date');
+  $memberships_with_manually_entered_dates = array_map(function ($item) {
+    $parts = explode('_membership_', $item);
+    return array_pop($parts);
+  }, array_keys($membership_start_dates));
+
+  $membership_sets = &$form['#node']->webform_civicrm['data']['membership'];
+  foreach ($membership_sets as $memberships_key => $membership_set) {
+    if (intval($membership_set['number_of_membership']) > 0) {
+      foreach ($membership_set['membership'] as $membership_number => $membership) {
+        if (in_array($membership_number, $memberships_with_manually_entered_dates)) {
+          $membership_sets[$memberships_key]['membership'][$membership_number]['num_terms'] = "1";
+        }
+      }
+    }
+  }
+}
+
+/**
+ * The function that alters the `wf_crm_configure_form` admin form.
+ *
+ * @param array $form
+ * @param array $form_state
+ * @param string $form_id
+ */
+function wf_me_wf_crm_configure_form_alter_handler(&$form, &$form_state, $form_id) {
+  if (!isset($form['contribution'])) {
+    return;
+  }
+
+  $wf_me_cividiscount_helper = new wf_me_cividiscount_ext_helper();
+  if (!$wf_me_cividiscount_helper->isEnabled()) {
+    return;
+  }
+
+  $wf_me_discount_settings = new wf_me_discount_settings();
+  $nid = $form_state['storage']['nid'];
+  $discount_status = $wf_me_discount_settings->getDiscountStatus($nid);
+
+  $form['contribution']['wcm_enable_discount'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Enable Discounts'),
+    '#default_value' => $discount_status ,
+    '#description' => 'When adding this field to the webform, please make sure it is also added to the CiviCRM contribution page'
+  );
+  $form['#submit'][] = '_webform_civicrm_discount_settings_submit';
+}
+
+/**
+ * The function that alters the `webform_client_form_WEBFORMID`  form.
+ *
+ * @param array $form
+ * @param array $form_state
+ * @param string $form_id
+ */
+function wf_me_webform_client_form_alter_handler(&$form, &$form_state, $form_id) {
+  $wf_me_cividiscount_helper = new wf_me_cividiscount_ext_helper();
+  $wf_me_discount_settings = new wf_me_discount_settings();
+  $is_discount_enabled = $wf_me_discount_settings->getDiscountStatus($form['#node']->nid);
+  //Hide the apply discount field on webform if enable discount is disabled or cividiscount
+  //extension is disabled.
+  if (!$wf_me_cividiscount_helper->isEnabled() || !$is_discount_enabled) {
+    $form['submitted']['webform_discount_code_field']['#access'] = FALSE;
+  }
+  elseif (isset($form['submitted']['webform_discount_code_field'])) {
+    _set_discount_code_status_in_session(FALSE);
+    $fields = $form['submitted'];
+    $form['submitted']['webform_discount_code_all_fields_wraper'] = array(
+      '#type' => 'container',
+      '#weight' => $fields['webform_discount_code_field']['#weight'],
+      '#prefix' => '<div id="webform_discount_code_all_fields_wrapper">',
+      '#suffix' => '</br></div>',
+    );
+    $form['submitted']['webform_discount_code_message_wrapper'] = array(
+      '#type' => 'container',
+      '#weight' => $fields['webform_discount_code_field']['#weight'],
+      '#prefix' => '<div id="discount-code-message-wrapper">',
+      '#suffix' => '</div>',
+    );
+    $form['submitted']['webform_discount_code_message_wrapper']['webform_discount_code_field_markup'] = array(
+      '#markup' => '',
+    );
+    $form['submitted']['webform_discount_code_buttons_wrapper'] = array(
+      '#type' => 'container',
+      '#weight' => $fields['webform_discount_code_field']['#weight'] + 1,
+      '#prefix' => '<span id="discount-code-actions">',
+      '#suffix' => '</span>',
+    );
+    $form['submitted']['webform_discount_code_buttons_wrapper']['webform_discount_code_field_clear'] = array(
+      '#type' => 'submit',
+      '#value' => 'Clear',
+      '#submit' => array('_webform_discount_code_clear_submit_callback'),
+      '#access' => FALSE,
+      '#limit_validation_errors' => array(),
+      '#validate' => '',
+      '#ajax' => array(
+        'callback' => '_webform_discount_code_clear_ajax_callback',
+      ),
+    );
+    $form['submitted']['webform_discount_code_buttons_wrapper']['webform_discount_code_field_apply'] = array(
+      '#type' => 'submit',
+      '#value' => 'Apply',
+      '#submit' => array('_webform_discount_code_field_submit_callback'),
+      '#limit_validation_errors' => array(),
+      '#validate' => '',
+      '#ajax' => array(
+        'callback' => '_webform_discount_code_field_ajax_callback',
+      ),
+    );
+
+    if ($form_state['disable_submit']['webform_discount_code_field']) {
+      _set_discount_code_status_in_session(TRUE);
+      $form['submitted']['webform_discount_code_buttons_wrapper']['webform_discount_code_field_clear']['#access'] = TRUE;
+    }
+
+    //Add custom function to set discounted line items in session that runs
+    //before wf_crm_validate because the total contribution is calculated and saved in wf_crm_validate.
+    array_unshift($form['#validate'], '_set_discounted_membership_items_in_session');
+
+    $form['#validate'][] = '_rebuild_form_on_validation_error';
+
+    // if total amount is 0 (100% discount) remove wf_crm_validate which makes payment
+    if (isset($form_state['total_amount']) && $form_state['total_amount'] == 0) {
+      $form['submitted']['civicrm_1_contribution_1_contribution_contribution_page_id']['#suffix'] = '';
+      $validate_callbacks = $form['#validate'];
+      $form['#validate'] = array();
+      foreach ($validate_callbacks as $vc) {
+        if ($vc == 'wf_crm_validate') {
+          continue;
+        }
+        $form['#validate'][] = $vc;
+      }
+    }
+
+    drupal_add_js(
+      drupal_get_path('module', 'webform_civicrm_membership_extras') . '/js/webform_civicrm_membership_extras.js'
+    );
+  }
+
+  if ($is_discount_enabled) {
+    $form['#validate'][] = '_clear_set_discount_code_related_data';
+  }
+}
+
+/**
+ * When there's a validation error on the webform such as
+ * error in payment details, If discount has already been applied, the form is shown
+ * with the apply button showing for the discount code and since the discounted items
+ * has already been set in the form line items, applying the discount code again will
+ * fetch the line items as if they were the original price and the discount code will
+ * be re-applied to the already discounted items. The fix is to rebuild so as to discard
+ * already stored discounted items on validation fail, the user can then re-apply the
+ * discount based on original prices for the memberships.
+ *
+ * @param array $form
+ * @param array $form_state
+ */
+function _rebuild_form_on_validation_error($form, &$form_state) {
+  if (form_get_errors() && isset($form['submitted']['webform_discount_code_field'])) {
+    $form_state['rebuild'] = TRUE;
+  }
+}
+
+
+/**
+ * Sets status of discount code in session.
+ *
+ * @param bool $status
+ */
+function _set_discount_code_status_in_session($status) {
+  $_SESSION['discount_code_applied'] = $status;
+}
+
+/**
+ * Custom function to add webform discount context to session.
+ *
+ * This is used in Webform_Discount_Civicrm_APIWrapper to alter line item price
+ * when returning items that have already been discounted.
+ *
+ * @param array $form
+ * @param array $form_state
+ */
+function _set_discounted_membership_items_in_session($form, &$form_state) {
+  $membership_type_added = array();
+  foreach ($form_state['line_items'] as $item) {
+    if (isset($item['membership_type_id'])) {
+      $membership_type_added[$item['membership_type_id']] = $item['unit_price'];
+    }
+  }
+
+  $_SESSION['webform_discount_submit']['membership_types'] = $membership_type_added;
+}
+
+/**
+ * Custom submit callback for discount code clear
+ *
+ * @param array $form
+ * @param array $form_state
+ */
+function _webform_discount_code_clear_submit_callback($form, &$form_state) {
+  unset($form_state['values']['submitted']['webform_discount_code_field']);
+  unset($form_state['input']['submitted']['webform_discount_code_field']);
+  $form_state['enable_submit']['webform_discount_code_field'] = 1;
+  $form_state['enable_submit_discount']['webform_discount_code_field'] = 1;
+  $_SESSION['discount_code_applied'] = FALSE;
+  _clear_set_discount_code_related_data($form, $form_state);
+  $form_state['rebuild'] = TRUE;
+}
+
+/**
+ * Clears general discount code related data stored in form state and in
+ * session.
+ *
+ * @param array $form
+ * @param array $form_state
+ */
+function _clear_set_discount_code_related_data($form, &$form_state) {
+  unset($form_state['disable_submit']['webform_discount_code_field']);
+  unset($form_state['line_items']);
+  unset($_SESSION['webform_discount_submit']);
+}
+
+/**
+ * Ajax callback for discount code clear
+ *
+ * @param array $form
+ * @param array $form_state
+ *
+ * @return array
+ */
+function _webform_discount_code_clear_ajax_callback($form, &$form_state) {
+  // Enable submit callback once clear submit is called.
+  if (isset($form_state['enable_submit_discount']['webform_discount_code_field'])) {
+
+    $items_amount_updated = array();
+    $total_amount = 0;
+    foreach ($form_state['civicrm']['line_items'] as $key => $value) {
+      $total_amount += $value['line_total'];
+      $items_amount_updated[$value['element']] = $value['line_total'];
+    }
+
+    // Enable submit.
+    $form['submitted']['webform_discount_code_field']['#access'] = TRUE;
+    $form['submitted']['webform_discount_code_buttons_wrapper']['webform_discount_code_field_clear']['#access'] = FALSE;
+    // Disable Status message.
+    $form['submitted']['webform_discount_code_message_wrapper']['webform_discount_code_field_markup']['#markup'] =
+      "<div class='discount-message' style='background-color: #ffd6cb; color: #701a00;'>Discount '".$form_state['discount_membership_result']['code']."' cleared!</div>";
+    unset($form_state['enable_submit_discount']);
+    unset($form['#node']->discount);
+  }
+
+  $ajax_commands = array();
+  if ($form_state['total_amount'] == 0) {
+    ctools_include('ajax');
+    $ajax_commands[] = ctools_ajax_command_reload();
+  }
+  else {
+    $ajax_commands = _webform_discount_ajax_update_commands($form, $items_amount_updated, $total_amount);
+    $ajax_commands[] = ajax_command_invoke('#billing-payment-block', 'show');
+  }
+
+  return array('#type' => 'ajax', '#commands' => $ajax_commands);
+}
+
+/**
+ * Ajax commands to be executed for when the Apply/Clear button for the
+ * discount code is clicked.
+ *
+ * @param array $form
+ * @param array $items_amount_updated
+ * @param mixed $total_amount
+ *
+ * @return array
+ */
+function _webform_discount_ajax_update_commands($form, $items_amount_updated, $total_amount) {
+  $ajax_commands[] = ajax_command_replace('#discount-code-message-wrapper', render($form['submitted']['webform_discount_code_message_wrapper']));
+  foreach ($items_amount_updated as $selector => $amount) {
+    $ajax_commands[] = ajax_command_invoke('#wf-crm-billing-items tr.'.$selector, 'attr', array(array('data-amount' => $amount)));
+    $ajax_commands[] = ajax_command_html('#wf-crm-billing-items tr.'.$selector.' td:nth-child(2)', '£ '.$amount);
+  }
+
+  $ajax_commands[] = ajax_command_invoke('#wf-crm-billing-total', 'attr', array(array('data-amount' => $total_amount)));
+  $ajax_commands[] = ajax_command_html('#wf-crm-billing-total td:nth-child(2)', '£ '.$total_amount);
+  $ajax_commands[] = ajax_command_replace('#discount-code-actions', render($form['submitted']['webform_discount_code_buttons_wrapper']));
+
+  return $ajax_commands;
+}
+
+/**
+ * Custom submit callback for discount code apply.
+ * Here the validation for the discount code takes place. If a discount code passes
+ * validation, a copy of line items are made and adjusted to suit the discount applied
+ * and the values stored in the form state. These values are used to modify the user
+ * view on the webform to see the new adjusted values in the _webform_discount_code_field_ajax_callback
+ * function.
+ *
+ * @param array $form
+ * @param array $form_state
+ */
+function _webform_discount_code_field_submit_callback($form, &$form_state) {
+  $form_values = &$form_state['input']['submitted'];
+  if (!empty($form_values['webform_discount_code_field'])) {
+
+    try{
+      _validate_webform_discount_code($form_values['webform_discount_code_field']);
+    } catch(Exception $e) {
+      $form_state['discount_error_message'] = $e->getMessage();
+
+      return;
+    }
+    $components = $form['#node']->webform['components'];
+    $membership_type_added = array();
+    foreach ($components as $key => $component) {
+      // Add only membership type civicrm components.
+      if (strpos($component['form_key'], '_membership_membership_type_id') !== FALSE) {
+        $membership_type_added[$key] = !empty($form_state['storage']['submitted'][$key]) ? $form_state['storage']['submitted'][$key] : 0;
+      }
+    }
+
+    $line_items = $form_state['civicrm']['line_items'];
+    $discount_code = $form_values['webform_discount_code_field'];
+    $wf_me_discount_amount_helper = new wf_me_discount_amount_helper($form_state['storage']);
+    $adjusted_line_items = $wf_me_discount_amount_helper->getAdjustedLineItems($discount_code, $line_items, $membership_type_added);
+
+    if (!empty($adjusted_line_items)) {
+      $civiDiscountExtensionHelper = new wf_me_cividiscount_ext_helper();
+      $discount_code_details = $civiDiscountExtensionHelper->getDiscountCodeDetails($discount_code);
+      $total_amount = $adjusted_line_items['total_amount'];
+      $form_state['line_items'] = $adjusted_line_items['line_items'];
+      $form_state['total_amount'] = $total_amount;
+      $form_state['discount_membership_result'] = $discount_code_details;
+      $form_state['discount_membership_result']['total_amount'] = $total_amount;
+      $form_state['discount_membership_result']['line_items'] = $form_state['line_items'];
+      $form_state['disable_submit']['webform_discount_code_field'] = 1;
+      $_SESSION['discount_code_applied'] = TRUE;
+      $form_state['rebuild'] = TRUE;
+    }
+  }
+  else {
+    $form_state['discount_error_message'] = t('The discount code you entered is invalid.');
+  }
+}
+
+/**
+ * Custom Ajax callback for discount code apply.
+ * The webform UI is updated here so that the user sees the updated item values after
+ * applying the discount code. Appropriate error message is also displayed in case
+ * the discount code is not valid
+ *
+ * @param array $form
+ * @param array $form_state
+ */
+function _webform_discount_code_field_ajax_callback($form, &$form_state) {
+  $ajax_commands = array();
+
+  if (isset($form_state['disable_submit']['webform_discount_code_field'])) {
+    // Hide the Apply Button from view but show the Clear button.
+    $form['submitted']['webform_discount_code_buttons_wrapper']['webform_discount_code_field_apply']['#access'] = FALSE;
+    $form['submitted']['webform_discount_code_buttons_wrapper']['webform_discount_code_field_clear']['#access'] = TRUE;
+
+    // Add Status message.
+    $items_amount_updated = array();
+    $total_amount = 0;
+    $markup = '';
+    foreach ($form_state['line_items'] as $key => $value) {
+      $total_amount += $value['unit_price'];
+      if ($value['discount_applied']) {
+        $items_amount_updated[$value['element']] = $value['unit_price'];
+        $membership_types = explode(':', $value['label']);
+        $discount_prefix = 'Your ' . $membership_types[0] . ' membership with original price of &pound;' .
+          $value['original_amount'] . ' had a ';
+        if ($form_state['discount_membership_result']['amount_type'] == wf_me_discount_amount_helper::WEBFORM_DISCOUNT_PERCENTAGE_AMOUNT) {
+          $discount_message = $value['discount_code_amount'] . '% discount applied (-&pound;' . $value['discounted_amount'] . ')';
+        }
+        else {
+          $discount_message =  '&pound;' . $value['discounted_amount'] . ' discount applied';
+        }
+        $markup .= "<div class='discount-message' style='background-color: #d6ffcb; color: #1a7000;'>" . $discount_prefix . $discount_message . "</div>";
+      }
+    }
+    $form['submitted']['webform_discount_code_message_wrapper']['webform_discount_code_field_markup']['#markup'] = $markup;
+
+    // Webform discount code status update.
+    $form['#node']->discount = $form_state['discount_membership_result'];
+
+    // Ajax commands to update relevant parts of the UI
+    $ajax_commands = _webform_discount_ajax_update_commands($form, $items_amount_updated, $total_amount);
+    if ($form_state['total_amount'] == 0) {
+      $ajax_commands[] = ajax_command_html('#billing-payment-block', '');
+    }
+  }
+  else if (isset($form_state['discount_error_message'])) {
+    $markup = '<div class=\'discount-message\' style=\'background-color: #ffd6cb; color: #701a00;\'>' . $form_state['discount_error_message'] . '</div>';
+    $form['submitted']['webform_discount_code_message_wrapper']['webform_discount_code_field_markup']['#markup'] = $markup;
+    $ajax_commands[] = ajax_command_replace(
+      '#discount-code-message-wrapper',
+      render($form['submitted']['webform_discount_code_message_wrapper']));
+  }
+
+  return array('#type' => 'ajax', '#commands' => $ajax_commands);
+}
+
+/**
+ * Validates the webform discount code.
+ *
+ * @param string $discount_code
+ *
+ * @throws \Exception
+ */
+function _validate_webform_discount_code($discount_code) {
+  $discount_code_validator = new wf_me_discount_code_validator();
+  $discount_code_validator->validate($discount_code);
+}
+
+/**
+ * Submit callback for the webform discount settings
+ *
+ * @param array $form
+ * @param array $form_state
+ */
+function _webform_civicrm_discount_settings_submit(&$form, &$form_state) {
+  $nid = $form_state['values']['nid'];
+  $enable_discount_status = $form_state['values']['wcm_enable_discount'];
+  $wf_me_discount_settings = new wf_me_discount_settings();
+  $wf_me_discount_settings->save($nid, $enable_discount_status);
+
+  $node = node_load($nid);
+  $civiDiscountComponent = _webform_get_webform_component_by_name($node, 'webform_discount_code_field');
+  if ($enable_discount_status == TRUE && empty($civiDiscountComponent)) {
+    _webform_discount_civicrm_create_discount_component($node);
+  }
+  elseif (empty($enable_discount_status) && !empty($civiDiscountComponent)) {
+    webform_component_delete($node, $civiDiscountComponent);
+  }
+}
+
+
+/**
+ * Gets the Webform component by its name
+ *
+ * @param $node
+ *   The webform node
+ * @param $componentName
+ *   The component to get name
+ *
+ * @return mixed|null
+ */
+function _webform_get_webform_component_by_name($node, $componentName) {
+  foreach ($node->webform['components'] as $key => $value) {
+    if ($value['form_key'] == $componentName) {
+      return $value;
+    }
+  }
+
+  return NULL;
+}
+
+/**
+ * Create discount webform component for particular node.
+ *
+ * @param object $node
+ *   Webform Node object.
+ *
+ * @return bool
+ *   Status.
+ */
+function _webform_discount_civicrm_create_discount_component(&$node) {
+
+  if (empty($node)) {
+    return FALSE;
+  }
+
+  $weight = end($node->webform['components'])['weight'] + 1;
+
+  // Create Discount code component.
+  $component = array(
+    'nid' => $node->nid,
+    'pid' => 0,
+    'form_key' => 'webform_discount_code_field',
+    'name' => t('Apply Discount Code'),
+    'type' => 'textfield',
+    'value' => '',
+    'weight' => !empty($weight) ? $weight : 1000,
+    'extra' => array(
+      'width' => 10,
+    ),
+  );
+  $node->webform['components'][] = $component;
+  $added_cid = webform_component_insert($component);
+  if ($added_cid) {
+    return TRUE;
+  }
+
+  return FALSE;
+}
+
+/**
+ * Determines if "CiviCRM  Processing" is enabled on
+ * the Webform.
+ *
+ * @param $node
+ *
+ * @return bool
+ */
+function _membershipextras_isCivicrmWebform($node) {
+  if (property_exists($node, 'webform_civicrm')) {
+    return TRUE;
+  }
+
+  return FALSE;
+}
+
+/**
+ * Returns the details of the discount code applied on the webform.
+ *
+ * @param object $node
+ * @param object $submission
+ *
+ * @return array
+ */
+function _membershipextras_getSubmittedDiscountCodeDetails($node, $submission) {
+  $webformComponents = $node->webform['components'];
+  $discountCodeFormId = '';
+  foreach ($webformComponents as $key => $component) {
+    if ($component['form_key'] == 'webform_discount_code_field'){
+      $discountCodeFormId = $key;
+      break;
+    }
+  }
+
+  if ($discountCodeFormId &&
+    !empty($submission->data[$discountCodeFormId][0]) &&
+    !empty($_SESSION['discount_code_applied'])
+  ) {
+    $cividiscountExtHelper =  new wf_me_cividiscount_ext_helper();
+
+    return $cividiscountExtHelper->getDiscountCodeDetails($submission->data[$discountCodeFormId][0]);
+  }
+}
+
+/**
+ * Updates the discount code usage count in cividiscount and also
+ * updates the discount code tracking details.
+ *
+ * @param array $discountCodeDetails
+ * @param object $node
+ */
+function _membershipextras_updateDiscountCodeUsage($discountCodeDetails, $node) {
+  $lineItems = _membershipextras_getCiviWebformPostprocessorPropertyValue($node, 'line_items');
+  $lineItemsMemberships = array();
+  foreach ($lineItems as $key => $item) {
+    if ($item['entity_table'] == 'civicrm_membership') {
+      $lineItemsMemberships[$item['membership_id']] = $item;
+    }
+  }
+
+  if (empty($lineItemsMemberships)) {
+    return;
+  }
+
+  $membershipDetails = civicrm_api3('Membership', 'get', [
+    'id' => ['IN' => array_keys($lineItemsMemberships)],
+  ])['values'];
+
+  $discountCodeMembershipTypes = $discountCodeDetails['memberships'];
+  $discountCodeAppliedMemberships = [];
+  foreach ($membershipDetails as $detail) {
+    if(in_array($detail['membership_type_id'], $discountCodeMembershipTypes)) {
+      $discountCodeAppliedMemberships[$detail['id']] = $detail;
+    }
+  }
+
+  if (empty($discountCodeAppliedMemberships)) {
+    return;
+  }
+
+  $cividiscountExtHelper = new wf_me_cividiscount_ext_helper();
+  foreach ($discountCodeAppliedMemberships as $membershipId => $membership) {
+    $cividiscountExtHelper->updateDiscountTrackingDetails(
+      $membership['contact_id'],
+      $lineItemsMemberships[$membershipId]['entity_id'],
+      $lineItemsMemberships[$membershipId]['contribution_id'],
+      $discountCodeDetails['id']
+    );
+  }
+  $cividiscountExtHelper->updateDiscountCodeUsage($discountCodeDetails['id']);
+  _set_discount_code_status_in_session(FALSE);
+}
+
+/**
+ * Gets the created recur contribution ID if there
+ * is any, otherwise return NULL;
+ *
+ * @param $node
+ *
+ * @return int|null
+ */
+function _membershipextras_getPaymentPlanRecurContribution($node) {
+  $civiWebformEntityProperty = _membershipextras_getCiviWebformPostprocessorPropertyValue($node, 'ent');
+
+  if (empty($civiWebformEntityProperty['contribution'][1]['id'])) {
+    return NULL;
+  }
+
+  $contributionId = $civiWebformEntityProperty['contribution'][1]['id'];
+
+  try {
+    $contributionRecurId = civicrm_api3('Contribution', 'getvalue', [
+      'return' => 'contribution_recur_id',
+      'id' => $contributionId,
+    ]);
+
+    return $contributionRecurId;
+  }
+  catch (Exception $e) {
+    return NULL;
+  }
+}
+
+/**
+ * Gets wf_crm_webform_postprocess class property
+ * value, whither its protected or private.
+ *
+ * Since we don't have control over wf_crm_webform_postprocess
+ * but we need some of its private/protected properties values,
+ * We are using the reflection here to achieve that.
+ *
+ * @param $node
+ * @param $propertyName
+ *
+ * @return mixed
+ */
+function _membershipextras_getCiviWebformPostprocessorPropertyValue($node, $propertyName) {
+  $civiWebformPostprocessor = wf_crm_webform_postprocess::singleton($node);
+  $civiWebformPostprocessorReflection = new ReflectionObject($civiWebformPostprocessor);
+  $entityReflectionObject = $civiWebformPostprocessorReflection->getProperty($propertyName);
+  $entityReflectionObject->setAccessible(true);
+  return $entityReflectionObject->getValue($civiWebformPostprocessor);
+}
+
+/**
+ * The function that alters the `webform_client_form_WEBFORMID`  form.
+ *
+ * @param array $form
+ * @param array $form_state
+ * @param string $form_id
+ */
+function _webform_civicrm_membership_extras_prorated_billing_form_alter_handler(&$form, &$form_state, $form_id) {
+  if (strpos($form_id, 'webform_client_form_') === FALSE) {
+    return;
+  }
+
+  if (!_membershipextras_isCivicrmWebform($form['#node'])) {
+    return;
+  }
+
+  if (!_webform_civicrm_membership_extras_is_prorated_billing_enabled($form, $form_state)) {
+    return;
+  }
+
+  _webform_civicrm_membership_extras_set_number_of_terms_for_manually_entered_dates_memberships($form, $form_state);
+
+  $form['#validate'][] = '_webform_civicrm_membership_extras_update_the_prorated_membership_items';
+  $form['#validate'][] = '_webform_civicrm_membership_extras_set_prorated_membership_items_in_session';
+
+  // The `wf_me_prorated_billing_apiwrapper` modifies the response for the get
+  // method of the membership_type.get API to allow the minimum fee to be set
+  // correctly for prorated memberships based on data stored in session.
+  // This behavior is by default disabled and can only be enabled by calling
+  // the method `_webform_civicrm_membership_extras_enable_prorated_billing`.
+  // If the user reached the last step , reviewed the confirmation page
+  // details and clicked submit, the
+  // `_webform_civicrm_membership_extras_enable_prorated_billing` function will
+  // be called to allow wf_me_prorated_billing_apiwrapper to replace membership
+  // fee with the new adjusted value that was saved in the session.
+  // After webform_civicrm extension have done its work to save the prorated
+  // membership fees, the
+  // `_webform_civicrm_membership_extras_disable_prorated_billing` function
+  // will be called to stop replacing the membership fee with the new adjusted
+  // value that was saved in the session.
+  // The _webform_civicrm_membership_extras_clear_prorated_billing_related_data
+  // function will delete any data stored in the session.
+  $page_num = $form['details']['page_num']['#value'];
+  $page_count = $form['details']['page_count']['#value'];
+  $isWebformConfirmationPage = $page_num === $page_count;
+  if ($isWebformConfirmationPage) {
+    $validate_callbacks = $form['#validate'];
+    $form['#validate'] = array();
+    foreach ($validate_callbacks as $validate_callback) {
+      if ($validate_callback == 'wf_crm_validate') {
+        $form['#validate'][] = '_webform_civicrm_membership_extras_enable_prorated_billing';
+        $form['#validate'][] = '_webform_civicrm_membership_extras_set_start_date_of_prorated_memberships';
+        $form['#validate'][] = $validate_callback;
+        $form['#validate'][] = '_webform_civicrm_membership_extras_disable_prorated_billing';
+        $form['#validate'][] = '_webform_civicrm_membership_extras_clear_prorated_billing_related_data';
+      } else {
+        $form['#validate'][] = $validate_callback;
+      }
+    }
+  }
+}
+
+/**
+ * Gets the instalmentAmountCalculator.
+ *
+ * @param object $membershipType
+ * @param array $membershipDates
+ */
+function _webform_civicrm_membership_extras_get_instalment_amount_calculator($membershipType, $membershipDates) {
+  $calculator = new CRM_MembershipExtras_Service_MembershipPeriodType_FixedPeriodTypeCalculator([$membershipType]);
+  $calculator->setStartDate(new DateTime($membershipDates['start_date']));
+  $calculator->setEndDate(new DateTime($membershipDates['end_date']));
+  $calculator->setJoinDate(new DateTime($membershipDates['join_date']));
+
+  $instalmentAmountCalculator = new CRM_MembershipExtras_Service_MembershipInstalmentAmountCalculator($calculator);
+  $instalmentAmountCalculator->getCalculator()->calculate();
+
+  return $instalmentAmountCalculator;
+}
+
+/**
+ * Gets the membership types that user has selected.
+ *
+ * @param array $form
+ * @param array $form_state
+ */
+function _webform_civicrm_membership_extras_get_membership_types(&$form, &$form_state) {
+  $membership_type_added = [];
+
+  $components = _webform_civicrm_membership_extras_get_components_by_part_of_form_key($form, '_membership_membership_type_id');
+  foreach ($components as $key => $component) {
+    // First, try to get the $membership_type_ids from the storage array if it
+    // was populated, which means this is another page, or it is an ajax request
+    // for applying the discount code. We use an array for membership_type ids
+    // because checkbox input allows mult-value.
+    $membership_type_ids = $form_state['storage']['submitted'][$key] ?? [];
+
+    // Second, try to get the $membership_type_ids from the input array.
+    $submitted = $form_state['values']['submitted'] ?? [];
+    $submittedInputsIterator = new RecursiveIteratorIterator(
+      new RecursiveArrayIterator($submitted),
+      RecursiveIteratorIterator::SELF_FIRST);
+    foreach($submittedInputsIterator as $fieldName => $field) {
+      if ($fieldName === $component['form_key']) {
+        $membership_type_ids = $field;
+        break;
+      }
+    }
+
+    if (!is_array($membership_type_ids)) {
+      $membership_type_ids = [$membership_type_ids];
+    }
+
+    foreach($membership_type_ids as $membership_type_id) {
+      if (empty($membership_type_id)) {
+        continue;
+      }
+      $membership_type_added[$key] = CRM_Member_BAO_MembershipType::findById($membership_type_id);
+    }
+  }
+
+  return $membership_type_added;
+}
+
+/**
+ * Gets the membership dates from the nested inputs array.
+ *
+ * It uses RecursiveIteratorIterator to loop through the nested array. Drupal
+ * webform allows the user to add fieldset to group multiple fields together
+ * which makes the submitted array structure nested.
+ * $form_state['input']['submitted'] = [
+ *   'civicrm_1_contact_1_fieldset_fieldset' => [
+ *     'civicrm_1_contact_1_contact_first_name' => 'Bruce',
+ *     'civicrm_1_contact_1_contact_last_name' => 'Wayne',
+ *     'civicrm_1_contact_1_contact_last_name' => 'Wayne',
+ *     'main_membership' => [
+ *       'civicrm_1_membership_1_membership_join_date' => [
+ *         'month' => '9',
+ *         'day' => '1',
+ *         'year' => '2021',
+         ]
+ *       'civicrm_1_membership_1_membership_start_date' => [..]
+ *       'civicrm_1_membership_1_membership_end_date' => [..]
+ *     ]
+ *     'civicrm_1_membership_2_membership_join_date' => [..]
+ *     'civicrm_1_membership_2_membership_start_date' => [..]
+ *     'civicrm_1_membership_2_membership_end_date' => [..]
+ *   ]
+ *   'civicrm_2_contact_1_fieldset_fieldset' => [..]
+ * ]
+ *
+ * @param array $form
+ * @param array $form_state
+ * @param string $date_name
+ */
+function _webform_civicrm_membership_extras_get_membership_dates_from_inputs_by_name(&$form, &$form_state, $date_name) {
+  if (!$form_state['input'] || empty($form_state['input']['submitted'])) {
+    return [];
+  }
+
+  $dates = [];
+  $part_of_form_key = "_membership_$date_name";
+  $components = _webform_civicrm_membership_extras_get_components_by_part_of_form_key($form, $part_of_form_key);
+  $submittedInputsIterator = new RecursiveIteratorIterator(
+    new RecursiveArrayIterator($form_state['input']['submitted']),
+    RecursiveIteratorIterator::SELF_FIRST);
+  foreach ($components as $key => $component) {
+    $date = 0;
+    foreach($submittedInputsIterator as $fieldName => $field) {
+      if ($fieldName === $component['form_key']) {
+        $day = $field['day'] ?? 0;
+        $month = $field['month'] ?? 0;
+        $year = $field['year'] ?? 0;
+        if ($day && $month && $year) {
+         $date = intval($year) . "-" . intval($month) . "-" . intval($day);
+        }
+      }
+    }
+
+    if (empty($date)) {
+      continue;
+    }
+    $membership_number = explode($part_of_form_key, $component['form_key'])[0];
+    $dates[$membership_number] = $date;
+  }
+
+  return $dates;
+}
+
+/**
+ * Merges membership dates by membership form key.
+ *
+ * @param array $membership_dates_added
+ * @param array $membershipNamesAndKeysMap
+ */
+function _webform_civicrm_membership_extras_merge_membership_dates_by_membership_form_key($membership_dates_added, $membershipNamesAndKeysMap) {
+  $result = [];
+
+  foreach($membership_dates_added as $membership_date_label => $dates) {
+    foreach ($dates as $membership_number => $date) {
+      $membership_type_key = $membershipNamesAndKeysMap[$membership_number];
+      $result[$membership_type_key][$membership_date_label] = $date;
+    }
+  }
+
+  // Prefills membrship dates with NULL if the user didn't fill all the fields.
+  foreach ($result as $key => $membership_date) {
+    $result[$key]['start_date'] = $membership_date['start_date'] ?? NULL;
+    $result[$key]['end_date'] = $membership_date['end_date'] ?? NULL;
+    $result[$key]['join_date'] = $membership_date['join_date'] ?? NULL;
+  }
+
+  return $result;
+}
+
+/**
+ * Gets the membership dates.
+ *
+ * If the number of terms set to be “Enter Dates Manually” then get membership
+ * dates from the form inputs if possible. If not, then get the membership
+ * dates from the membership type.
+ *
+ * @param array $form
+ * @param array $form_state
+ * @param array $membershipTypes
+ * @param array $membershipNamesAndKeysMap
+ */
+function _webform_civicrm_membership_extras_get_membership_dates(&$form, &$form_state, $membershipTypes, $membershipNamesAndKeysMap) {
+  $membership_dates_added = [
+    'start_date' => _webform_civicrm_membership_extras_get_membership_dates_from_inputs_by_name($form, $form_state, 'start_date'),
+    'end_date' => _webform_civicrm_membership_extras_get_membership_dates_from_inputs_by_name($form, $form_state, 'end_date'),
+    'join_date' => _webform_civicrm_membership_extras_get_membership_dates_from_inputs_by_name($form, $form_state, 'join_date'),
+  ];
+
+  $membership_dates_added =
+    _webform_civicrm_membership_extras_merge_membership_dates_by_membership_form_key($membership_dates_added, $membershipNamesAndKeysMap);
+
+  foreach ($membershipTypes as $key => $membershipType) {
+    $dates = $membership_dates_added[$key];
+    foreach ($dates as $label => $date) {
+      if ($dates[$label]) {
+          $dates[$label] =  new DateTime($dates[$label]);
+      }
+    }
+
+    $membershipTypeDatesCalculator = new CRM_MembershipExtras_Service_MembershipTypeDatesCalculator();
+    $membership_dates_added[$key] = $membershipTypeDatesCalculator->getDatesForMembershipType(
+      $membershipType->id,
+      $dates['start_date'],
+      $dates['end_date'],
+      $dates['join_date']
+    );
+
+    // Sets the start date to today if the user didn't fill it.
+    if (!$dates['start_date']) {
+      $membership_dates_added[$key]['start_date'] = date('Ymd');
+    }
+  }
+
+  return $membership_dates_added;
+}
+
+/**
+ * Checks if the membership types are fixed.
+ *
+ * @param array $membershipTypes
+ */
+function _webform_civicrm_membership_extras_are_membership_types_fixed(array $membershipTypes) {
+  $areMembershipTypesFixed = TRUE;
+  foreach($membershipTypes as $membershipType) {
+    if($membershipType->period_type !== 'fixed') {
+      $areMembershipTypesFixed = FALSE;
+      break;
+    }
+  }
+  if (count($membershipTypes) < 1 || !$areMembershipTypesFixed) {
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+/**
+ * Calculates the prorated membership items.
+ *
+ * @param array $form
+ * @param array $form_state
+ */
+function _webform_civicrm_membership_extras_update_the_prorated_membership_items($form, &$form_state) {
+  $membershipTypes = _webform_civicrm_membership_extras_get_membership_types($form, $form_state);
+  if (!_webform_civicrm_membership_extras_are_membership_types_fixed($membershipTypes)) {
+    return FALSE;
+  }
+
+  $components = $form['#node']->webform['components'];
+  $membershipNamesAndKeysMap = [];
+  foreach ($membershipTypes as $key => $membershipType) {
+    $membership_number = explode('_membership_membership_type_id', $components[$key]['form_key'])[0];
+    $membershipNamesAndKeysMap[$membership_number] = $key;
+  }
+
+  $membershipDates = _webform_civicrm_membership_extras_get_membership_dates($form, $form_state, $membershipTypes, $membershipNamesAndKeysMap);
+  $line_items = &$form_state['civicrm']['line_items'];
+
+  // adjust the lineitems
+  $instalmentCount = 1;
+  foreach ($membershipTypes as $key => $membershipType) {
+    $instalmentAmountCalculator = _webform_civicrm_membership_extras_get_instalment_amount_calculator($membershipTypes[$key], $membershipDates[$key]);
+    $instalmentAmount = $instalmentAmountCalculator->calculateInstalmentAmount($instalmentCount);
+    $instalmentLineItems = $instalmentAmount->getLineItems();
+
+    foreach($line_items as $line_item_key => $item) {
+      if (isset($membershipNamesAndKeysMap[$item['element']]) && $membershipNamesAndKeysMap[$item['element']] === $key) {
+        $line_items[$line_item_key]['unit_price'] = $instalmentLineItems[0]->getUnitPrice();
+        $line_items[$line_item_key]['unit_price'] = number_format( $line_items[$line_item_key]['unit_price'], 2, '.', '');
+        $line_items[$line_item_key]['line_total'] = $instalmentLineItems[0]->getTotalAmount() - $instalmentLineItems[0]->getTaxAmount();
+        $line_items[$line_item_key]['line_total'] = (float) number_format( $line_items[$line_item_key]['line_total'], 2, '.', '');
+        $line_items[$line_item_key]['tax_amount'] = $instalmentLineItems[0]->getTaxAmount();
+        $line_items[$line_item_key]['tax_amount'] = (float) number_format( $line_items[$line_item_key]['tax_amount'], 2, '.', '');
+        $line_items[$line_item_key]['membership_type_id'] = $membershipTypes[$key]->id;
+
+        $prorated_start_date = DateTime::createFromFormat('Ymd', $membershipDates[$key]['start_date']);
+        $line_items[$line_item_key]['prorated_start_date'] = $prorated_start_date->format('Y-m-d');
+      }
+    }
+  }
+}
+
+/**
+ * Checks whether prorated billing should be enabled or not.
+ *
+ * @param array $form
+ * @param array $form_state
+ *
+ * @return boolean
+ */
+function _webform_civicrm_membership_extras_is_prorated_billing_enabled($form, &$form_state) {
+  $membershipSettings = $form['#node']->webform_civicrm['data']['membership'] ?? [];
+  $isNumberOfTermsIsOne = TRUE;
+  foreach($membershipSettings as $settings) {
+    foreach ($settings['membership'] as $membership_settings) {
+      if($membership_settings['num_terms'] > 1) {
+        $isNumberOfTermsIsOne = FALSE;
+         break 2;
+      }
+
+      // Don't do the pro-rata calculation if the user can manually select the
+      // number of terms.
+      if($membership_settings['num_terms'] === "") {
+        $isNumberOfTermsIsOne = FALSE;
+         break 2;
+      }
+    }
+  }
+  if (!$isNumberOfTermsIsOne) {
+    return FALSE;
+  }
+
+  $components = _webform_civicrm_membership_extras_get_components_by_part_of_form_key($form, '_membership_fee_amount');
+  if (count($components) > 0) {
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+/**
+ * Adds webform prorated membership items to session.
+ *
+ * This is used in wf_me_prorated_billing_apiwrapper to alter line item price
+ * when returning items that have already been prorated.
+ *
+ * @param array $form
+ * @param array $form_state
+ */
+function _webform_civicrm_membership_extras_set_prorated_membership_items_in_session($form, &$form_state) {
+  $membership_type_added = array();
+  $membership_start_date_added = array();
+  foreach ($form_state['civicrm']['line_items'] as $item) {
+    if (isset($item['membership_type_id'])) {
+      $membership_type_added[$item['membership_type_id']] = $item['unit_price'];
+      $membership_start_date_added[$item['membership_type_id']] = $item['prorated_start_date'];
+    }
+  }
+
+  $_SESSION['webform_prorated_billing']['membership_types'] = $membership_type_added;
+  $_SESSION['webform_prorated_billing']['membership_start_dates'] = $membership_start_date_added;
+}
+
+/**
+ * Enables prorated billing.
+ *
+ * This is used in wf_me_prorated_billing_apiwrapper to alter line item price
+ * when returning items that have already been prorated.
+ *
+ * @param array $form
+ * @param array $form_state
+ */
+function _webform_civicrm_membership_extras_enable_prorated_billing(&$form, &$form_state) {
+  $_SESSION['webform_prorated_billing']['is_enabled'] = TRUE;
+}
+
+/**
+ * Sets start date of prorated memberships.
+ *
+ * Updates webform components && submitted values to have the start date of
+ * each prorated membership only during the last submission.
+ *
+ * @param array $form
+ * @param array $form_state
+ */
+function _webform_civicrm_membership_extras_set_start_date_of_prorated_memberships(&$form, &$form_state) {
+  $components = _webform_civicrm_membership_extras_get_components_by_part_of_form_key($form, '_membership_membership_type_id');
+  foreach ($components as $key => $component) {
+    // Checks if the membership is selected.
+    $component_value = $form_state['storage']['submitted'][$key] ?? [];
+    if (is_array($component_value)) {
+        // Checkboxes return array of values.
+        $component_value = $component_value[0] ?? '';
+    }
+    if (empty($component_value)) {
+      continue;
+    }
+
+    // Checks if there is a start date component.
+    $form_key = str_replace('_membership_membership_type_id', '_membership_start_date', $component['form_key']);
+    $is_start_date_component_exists = !empty(_webform_civicrm_membership_extras_get_components_by_part_of_form_key($form, $form_key));
+    if ($is_start_date_component_exists) {
+      continue;
+    }
+
+    // Creates the webform component(field).
+    $cid = max(array_keys($form['#node']->webform['components'])) + 1;
+    $form['#node']->webform['components'][$cid] = [
+      'nid' => $form['#node']->webform['nid'],
+      'cid' => "$cid",
+      'form_key' => $form_key,
+    ];
+
+    // Sets the value of the newly created webform component.
+    $prorated_start_date = $_SESSION['webform_prorated_billing']['membership_start_dates'][$component_value];
+    $form_state['storage']['submitted'][$cid] = $prorated_start_date;
+  }
+}
+
+/**
+ * Disables prorated billing.
+ *
+ * This is used in wf_me_prorated_billing_apiwrapper to alter line item price
+ * when returning items that have already been prorated.
+ *
+ * @param array $form
+ * @param array $form_state
+ */
+function _webform_civicrm_membership_extras_disable_prorated_billing($form, &$form_state) {
+  $_SESSION['webform_prorated_billing']['is_enabled'] = FALSE;
+}
+
+/**
+ * Clears general pro rata related data stored in form state and in session.
+ *
+ * @param array $form
+ * @param array $form_state
+ */
+function _webform_civicrm_membership_extras_clear_prorated_billing_related_data($form, &$form_state) {
+  unset($_SESSION['webform_prorated_billing']);
+}
+
+function _webform_civicrm_membership_extras_get_components_by_part_of_form_key($form, $form_key) {
+  $components = $form['#node']->webform['components'];
+  $matched_components = [];
+  foreach ($components as $key => $component) {
+    if (strpos($component['form_key'], $form_key) !== FALSE) {
+      $matched_components[$key] = $component;
+    }
+  }
+
+  return $matched_components;
+}

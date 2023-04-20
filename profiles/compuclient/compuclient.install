@@ -1,0 +1,378 @@
+<?php
+
+/**
+ * @file
+ * Contains install and update functions for Compuclient.
+ */
+
+use Drupal\compuclient\Setup\Step\BootstrapThemeConfigurationStep;
+use Drupal\compuclient\Setup\Step\CiviCRMInstallerStep;
+use Drupal\compuclient\Setup\Step\StandardProfileConfigurationStep;
+use Drupal\compuclient\Setup\Step\ErrorDisplayConfigurationStep;
+use Drupal\compuclient\Setup\Step\LessEngineConfigurationStep;
+use Drupal\compuclient\Setup\Step\NodeAccessRebuilderStep;
+use Drupal\compuclient\Setup\Step\DefaultCiviCRMExtensionsInstallerStep;
+use Drupal\compuclient\Setup\Step\CiviCRMCustomiseDataAndScreensConfigurationStep;
+use Drupal\compuclient\Setup\Step\CiviCRMLocalisationConfigurationStep;
+use Drupal\compuclient\Setup\Step\ParticipantStatusesUpdateStep;
+use Drupal\compuclient\Setup\Step\CiviCRMReplacePaymentMethodsLabelStep;
+use Drupal\compuclient\Setup\Step\CiviCRMSystemSettingStep;
+use Drupal\compuclient\Setup\Step\CiviCRMGroupRolesSyncConfigurationStep;
+use Drupal\compuclient\Setup\Step\ShoreditchCompanionThemeConfigurationStep;
+use Drupal\compuclient\Setup\Step\ShinyAdminThemeConfigurationStep;
+use Drupal\compuclient\Setup\Step\CiviCRMDependentModulesInstallationStep;
+use Drupal\compuclient\Setup\Step\CiviCRMJobScheduleConfigurationStep;
+use Drupal\compuclient\Setup\Step\DefaultPermissionsConfigurationStep;
+
+/**
+ * Includes all the update files.
+ */
+foreach (glob(__DIR__ . '/updates/*.php') as $updateFile) {
+  require_once $updateFile;
+}
+
+/**
+ * Implements hook_update_last_removed().
+ *
+ * We should use this hook and periodically remove updates that have already
+ * been released to all clients. It basically just says "this update was
+ * removed" so if you're on a version lower than that it's too late for you
+ * to try and update.
+ */
+function compuclient_update_last_removed() {
+  return 0;
+}
+
+/**
+ * Implements hook_install_tasks().
+ *
+ * Defines the custom tasks used by this profile.
+ */
+function compuclient_install_tasks() {
+  $tasks['_compuclient_run_installers'] = [
+    'display_name' => st('Running Compucorp Site Installer'),
+  ];
+  $tasks['_compuclient_run_post_installers'] = [
+    'display_name' => st('Running Compucorp Site Post Installer'),
+  ];
+  return $tasks;
+}
+
+/**
+ * Implements hook_install().
+ *
+ * Perform actions to set up the site for this profile. This should include
+ * client related configuration after the site is created. The
+ * StandardProfileConfigurationStep must be  run from here as it will fail if
+ * run from hook_install_tasks_alter.
+ */
+function compuclient_install() {
+  /** @var \Drupal\compuclient\Setup\Step\StepInterface[] $steps */
+  $steps = [
+    new StandardProfileConfigurationStep(),
+  ];
+
+  foreach ($steps as $step) {
+    $step->apply();
+  }
+}
+
+/**
+ * Implements hook_install_tasks_alter().
+ *
+ * Makes customizations to the default tasks configuration.
+ */
+function compuclient_install_tasks_alter(&$tasks, $install_state) {
+  // Hide and skip the default database configuration step, as we have our own.
+  $tasks['install_select_profile']['display'] = FALSE;
+  $tasks['install_settings_form']['run'] = INSTALL_TASK_SKIP;
+  $tasks['install_settings_form']['display'] = FALSE;
+
+  $dbConfigured = isset($install_state['parameters']['database_configured']);
+  $new_task['database_configuration'] = [
+    'display' => TRUE,
+    'display_name' => st('Database Configuration'),
+    'type' => 'form',
+    'run' => $dbConfigured ? INSTALL_TASK_SKIP : INSTALL_TASK_RUN_IF_REACHED,
+  ];
+
+  // Add our database configuration step after the Verify Requirements step.
+  $old_tasks = $tasks;
+  $tasks = array_slice($old_tasks, 0, 4) + $new_task + array_slice($old_tasks, 4);
+}
+
+/**
+ * Runs installers.
+ *
+ * Perform actions to set up the site for this profile. This function will not
+ * be called when we change the profile for existing sites, only during the
+ * installation of new sites.
+ */
+function _compuclient_run_installers($installState) {
+  _compuclient_register_civicrm_autoloader();
+  _compuclient_register_module_autoloader();
+
+  /** @var \Drupal\compuclient\Setup\Step\StepInterface[] $steps */
+  $steps = [
+    new CiviCRMInstallerStep($installState),
+    new CiviCRMDependentModulesInstallationStep(),
+    new DefaultCiviCRMExtensionsInstallerStep(),
+    new NodeAccessRebuilderStep(),
+    new LessEngineConfigurationStep(),
+    new ErrorDisplayConfigurationStep(),
+    new CiviCRMCustomiseDataAndScreensConfigurationStep(),
+    new CiviCRMLocalisationConfigurationStep(),
+    new ParticipantStatusesUpdateStep(),
+    new CiviCRMReplacePaymentMethodsLabelStep(),
+    new CiviCRMSystemSettingStep(),
+    new CiviCRMGroupRolesSyncConfigurationStep(),
+    new BootstrapThemeConfigurationStep(),
+    new ShoreditchCompanionThemeConfigurationStep(),
+    new ShinyAdminThemeConfigurationStep(),
+    new CiviCRMJobScheduleConfigurationStep(),
+  ];
+
+  foreach ($steps as $step) {
+    $step->apply();
+  }
+}
+
+/**
+ * Performs actions after the installers task is done.
+ *
+ * @param array $installState
+ *   An array of information about the current installation state.
+ */
+function _compuclient_run_post_installers(array &$installState) {
+
+  // Make sure we flush all Drupal cached data.
+  drupal_flush_all_caches();
+
+  // Reset all ephemeral system states i.e statics/singletons/thread-local
+  // caches. Civi stores the list of the statics variables declared
+  // in each of the installed extension. For example, permission.
+  // If an extension is installed after the cache has been created,
+  // any permissions declared by the extension will not be added to the cache.
+  // Clearing the CiviCRM cache with `System.flush` doesn't clear this
+  // in-memory cache, so the only way to do it is by resetting the
+  // value in the static array.
+  \Civi::reset();
+
+  // Apply any steps on post installers task.
+  $steps = [
+    new DefaultPermissionsConfigurationStep(),
+  ];
+
+  foreach ($steps as $step) {
+    $step->apply();
+  }
+
+  // Flush CiviCRM settings to activate CiviCRM settings
+  // that defined in the extensions.
+  \Civi::service('settings_manager')->flush();
+}
+
+/**
+ * Registers module autoloader.
+ *
+ * To use classes from inside this module during installation we need to
+ * manually register the paths with the autoloader.
+ */
+function _compuclient_register_module_autoloader() {
+  $xautoloadPath = drupal_get_path('module', 'xautoload');
+  require_once $xautoloadPath . '/xautoload.early.inc';
+
+  /** @var \Drupal\xautoload\ClassFinder\ClassFinder $finder */
+  $finder = xautoload_get_finder();
+  $finder->addPsr4('Drupal\compuclient\\', __DIR__ . '/src');
+}
+
+/**
+ * Required to use some CiviCRM classes before the module is fully installed.
+ */
+function _compuclient_register_civicrm_autoloader() {
+  $civicrm_path = dirname(drupal_get_path('module', 'civicrm'));
+  $classLoaderFile = sprintf('%s/CRM/Core/ClassLoader.php', $civicrm_path);
+  require_once $classLoaderFile;
+  \CRM_Core_ClassLoader::singleton()->register();
+}
+
+/**
+ * The form used by the Database Configuration task.
+ *
+ * @return array
+ *   Database configuration form
+ */
+function database_configuration() {
+  $form = [];
+
+  $form['database_configuration']['drupal'] = [
+    '#title' => 'Drupal Database',
+    '#type' => 'fieldset',
+    '#tree' => TRUE,
+  ];
+
+  $form['database_configuration']['drupal']['database'] = [
+    '#title' => st('Database'),
+    '#type' => 'textfield',
+    '#required' => TRUE,
+  ];
+
+  $form['database_configuration']['drupal']['username'] = [
+    '#title' => st('Username'),
+    '#type' => 'textfield',
+    '#required' => TRUE,
+  ];
+
+  $form['database_configuration']['drupal']['password'] = [
+    '#title' => st('Password'),
+    '#type' => 'password',
+  ];
+
+  $form['database_configuration']['civicrm'] = [
+    '#title' => 'CiviCRM Database',
+    '#type' => 'fieldset',
+    '#tree' => TRUE,
+  ];
+
+  $form['database_configuration']['civicrm']['database'] = [
+    '#title' => st('Database'),
+    '#type' => 'textfield',
+    '#required' => TRUE,
+  ];
+
+  $form['database_configuration']['civicrm']['username'] = [
+    '#title' => st('Username'),
+    '#type' => 'textfield',
+    '#required' => TRUE,
+  ];
+
+  $form['database_configuration']['civicrm']['password'] = [
+    '#title' => st('Password'),
+    '#type' => 'password',
+  ];
+
+  $form['database_configuration']['advanced'] = [
+    '#title' => 'Advanced Configuration',
+    '#type' => 'fieldset',
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+    '#tree' => TRUE,
+  ];
+
+  $form['database_configuration']['advanced']['host'] = [
+    '#title' => 'Host',
+    '#type' => 'textfield',
+  ];
+
+  $form['database_configuration']['advanced']['port'] = [
+    '#title' => 'Port',
+    '#type' => 'textfield',
+  ];
+
+  $form['database_configuration']['advanced']['ssl_key'] = [
+    '#title' => 'SSL Key',
+    '#type' => 'textfield',
+  ];
+
+  $form['database_configuration']['advanced']['ssl_cert'] = [
+    '#title' => 'SSL Cert',
+    '#type' => 'textfield',
+  ];
+
+  $form['database_configuration']['advanced']['ssl_ca'] = [
+    '#title' => 'SSL CA',
+    '#type' => 'textfield',
+  ];
+
+  $form['database_configuration']['advanced']['ssl_capath'] = [
+    '#title' => 'SSL CAPATH',
+    '#type' => 'textfield',
+  ];
+
+  $form['database_configuration']['advanced']['ssl_cipher'] = [
+    '#title' => 'SSL CIPHER',
+    '#type' => 'textfield',
+  ];
+
+  $form['actions'] = ['#type' => 'actions'];
+  $form['actions']['save'] = [
+    '#type' => 'submit',
+    '#value' => st('Save and continue'),
+  ];
+
+  return $form;
+}
+
+/**
+ * Validates the database configuration form.
+ *
+ * @param array $form
+ *   Nested array of form elements that comprise the form.
+ * @param array $form_state
+ *   A keyed array containing the current state of the form.
+ */
+function database_configuration_validate(array $form, array &$form_state) {
+  $values = $form_state['values'];
+  if ($values['drupal']['database'] === $values['civicrm']['database']) {
+    form_set_error(
+      '[civicrm][database]',
+      st('The CiviCRM database cannot be the same as the Drupal database')
+    );
+  }
+}
+
+/**
+ * Handles database configuration form submission.
+ *
+ * Function called when the database configuration form is submitted.
+ *
+ * @param array $form
+ *   Nested array of form elements that comprise the form.
+ * @param array $formState
+ *   A keyed array containing the current state of the form.
+ *
+ * @throws \Exception
+ */
+function database_configuration_submit(array $form, array &$formState) {
+  global $install_state;
+
+  $formValues = $formState['values'];
+
+  // Settings saving adapted from install_settings_form_submit()
+  $additionalDatabaseSettings = [
+    'host' => $formValues['advanced']['host'] ?: '127.0.0.1',
+    'port' => $formValues['advanced']['port'] ?: '3306',
+    'driver' => 'mysql',
+    'prefix' => '',
+  ];
+
+  $settings['databases'] = [
+    'value' => [
+      'default' => [
+        'default' => array_merge($formValues['drupal'],
+          $additionalDatabaseSettings),
+      ],
+      // At this point, neither the session nor the database
+      // are initialized yet, so, in order to make this configuration available
+      // to the CiviCRM installation step, we save it to the Drupal settings
+      // file and then erase it once the CiviCRM settings file is created.
+      'civicrm' => [
+        'default' => array_merge(
+          $formValues['civicrm'],
+          $additionalDatabaseSettings
+        ),
+      ],
+    ],
+    'required' => TRUE,
+  ];
+  $settings['drupal_hash_salt'] = [
+    'value' => drupal_random_key(),
+    'required' => TRUE,
+  ];
+  drupal_rewrite_settings($settings);
+
+  $install_state['parameters']['database_configured'] = TRUE;
+  $install_state['settings_verified'] = TRUE;
+  $install_state['completed_task'] = install_verify_completed_task();
+}

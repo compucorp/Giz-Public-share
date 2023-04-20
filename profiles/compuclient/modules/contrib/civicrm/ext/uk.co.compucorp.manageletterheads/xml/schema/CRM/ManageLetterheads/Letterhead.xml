@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="iso-8859-1" ?>
+
+<table>
+  <base>CRM/ManageLetterheads</base>
+  <class>Letterhead</class>
+  <name>civicrm_manageletterheads_letterhead</name>
+  <comment>Store Letterhead details</comment>
+  <log>true</log>
+
+  <field>
+    <name>id</name>
+    <type>int unsigned</type>
+    <required>true</required>
+    <comment>Unique Letterhead ID</comment>
+  </field>
+  <primaryKey>
+    <name>id</name>
+    <autoincrement>true</autoincrement>
+  </primaryKey>
+
+  <field>
+    <name>title</name>
+    <type>varchar</type>
+    <length>255</length>
+    <required>true</required>
+    <unique>true</unique>
+    <comment>Letterhead Title</comment>
+  </field>
+
+  <field>
+    <name>name</name>
+    <type>varchar</type>
+    <length>255</length>
+    <required>true</required>
+    <unique>true</unique>
+    <comment>Letterhead Name</comment>
+  </field>
+
+  <field>
+    <name>description</name>
+    <type>varchar</type>
+    <length>255</length>
+    <comment>Letterhead Description</comment>
+  </field>
+
+  <field>
+    <name>content</name>
+    <type>longtext</type>
+    <required>true</required>
+    <comment>Letterhead Description</comment>
+  </field>
+
+  <field>
+    <name>weight</name>
+    <title>Order</title>
+    <type>int unsigned</type>
+    <required>true</required>
+    <comment>Controls display sort order.</comment>
+  </field>
+
+  <field>
+    <name>is_active</name>
+    <type>boolean</type>
+    <required>true</required>
+    <default>1</default>
+    <comment>Whether the letterhead is disabled or not</comment>
+  </field>
+
+</table>

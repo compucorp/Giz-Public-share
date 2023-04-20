@@ -1,0 +1,246 @@
+/*-------------------------------------------------------+
+| CAMPAIGN MANAGER                                       |
+| Copyright (C) 2015-2017 SYSTOPIA                       |
+| Author: N. Bochan                                      |
+|         B. Endres (endres@systopia.de)                 |
++--------------------------------------------------------+
+| This program is released as free software under the    |
+| Affero GPL license. You can redistribute it and/or     |
+| modify it under the terms of this license which you    |
+| can read by viewing the included agpl.txt or online    |
+| at www.gnu.org/licenses/agpl.html. Removal of this     |
+| copyright header is strictly prohibited without        |
+| written permission from the original author(s).        |
++--------------------------------------------------------*/
+
+/*
+   de.systopia.campaign styles file
+*/
+
+#campaign_container textarea {
+  margin: 0.5em;
+  width: 95%;
+  height: 10em;
+}
+
+#campaign_container #breadcrumb {
+   margin: 10px 0;
+}
+
+#campaign_container #breadcrumb a {
+    text-decoration:none;
+}
+
+#campaign_container #breadcrumb a:hover {
+    text-decoration:underline;
+}
+
+#campaign_container #breadcrumb .current {
+   font-weight: bold;
+}
+
+#campaign_container #actions {
+   margin: 10px 0;
+}
+
+#campaign_container #actions .fr {
+  float: right;
+}
+
+#campaign_container #info {
+   margin: 50px 0 10px 0;
+}
+
+#tree_container #actions {
+  float: left;
+}
+
+#tree_container #actions .fr {
+  float: right;
+}
+
+#actions{
+   width: 100%;
+   margin-bottom: 15px;
+}
+
+#campaign_container .goalContent {
+   margin: 10px 10px 10px 10px;
+}
+
+#campaign_container .addExpense {
+  margin: 5px 0px 5px 5px;
+}
+
+#campaign_container .exptable td {
+  max-width: 150px;
+}
+
+#campaign_container .exptable tr [colspan="5"]{
+ text-align: center;
+}
+
+#campaign_container .exptable .sortorder:after {
+  content: '\25b2';
+}
+#campaign_container .exptable .sortorder.reverse:after {
+  content: '\25bc';
+}
+
+#tree_container .node circle {
+	  fill: #fff;
+	  stroke: #5D677B;
+	  stroke-width: 3px;
+	}
+
+#tree_container .node text {
+   font-family: "Trebuchet MS", "Helvetica Neue", Arial, Helvetica, sans-serif;
+   font-size: 13px;
+   color: #494949;
+   }
+
+#tree_container .link {
+	  fill: none;
+	  stroke: #aaa;
+	  stroke-width: 2px;
+	}
+
+#tree_container #helptext {
+  display: none;
+}
+
+
+.CampaignExpenseAddDiv #addexpense_category {
+  width: 20em;
+  height: 1.8em;
+}
+
+#kpivis {
+  width: 100%;
+}
+
+.kpivisitem {
+  float: left;
+  padding: 20px 20px 20px 20px;
+}
+.kpivisitem .title {
+  display: flex;
+}
+.crm-container .kpivisitem h3 {
+  text-align: center;
+  flex: 1 0 100%;
+  padding-right: 4.5em; /* 2 * 2em button width + .5em right padding */
+  box-sizing: border-box;
+}
+.kpivisitem .kpivisitem__links {
+  position: relative;
+  align-self: center;
+  margin: 0 0 0 -5em; /* 2 * 2em button width + 2 * .5em padding */
+  width: 4em;
+  display: flex;
+}
+.kpivisitem .kpivisitem__links > li {
+  display: block;
+  width: 1em;
+  padding: .5em;
+}
+
+piechart path.slice {
+  stroke-width:2px;
+}
+
+piechart .labels text.hidden,
+piechart .lines polyline.hidden {
+  visibility: hidden;
+}
+
+piechart polyline {
+  opacity: .3;
+  stroke: black;
+  stroke-width: 2px;
+  fill: none;
+}
+
+.visualization {
+  margin-bottom: 8px;
+}
+
+piechart svg {
+  display: block;
+  margin: auto;
+}
+
+linegraph svg {
+  display: block;
+  margin: auto;
+}
+
+linegraph path {
+    stroke: steelblue;
+    stroke-width: 2;
+    fill: none;
+}
+
+linegraph .axis path,
+linegraph .axis line {
+    fill: none;
+    stroke: grey;
+    stroke-width: 1;
+    shape-rendering: crispEdges;
+}
+
+/* alter display of parent and child groups in Manage Groups selector */
+/* from civicrm.css: #crm-container .crm-group-parent td.crm-group-name { */
+#crm-container td.crm-campaign-name {
+    padding-left: 30px;
+    text-indent: -20px;
+}
+
+/* from civicrm.css: #crm-container .crm-group-child td.crm-group-name.level_2 { */
+#crm-container td.crm-campaign-name.level_2 {
+    padding-left: 50px;
+    text-indent: -20px;
+}
+/* from civicrm.css: #crm-container .crm-group-child td.crm-group-name.level_3 { */
+#crm-container td.crm-campaign-name.level_3 {
+    padding-left: 70px;
+    text-indent: -20px;
+}
+/* from civicrm.css: #crm-container .crm-group-name span.crm-editable-enabled { */
+#crm-container .crm-campaign-name span.crm-editable-enabled {
+    text-indent: 0;
+}
+
+.campaign-icon {
+    max-width: 20px;
+    vertical-align: middle;
+}
+
+.campaign-fa-icon {
+    max-width: 20px;
+    max-height: 20px;
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+    overflow: hidden;
+    vertical-align: middle;
+    text-indent: 0;
+}
+
+#crm-campaign-actions-list {
+  position: absolute;
+  display: block;
+  top: 150px;
+  width: 256px;
+  left: 128;
+  z-index: 15;
+}
+
+.crm-campaign-actions-list-inner {
+  background-color: #2f2f2e;
+  padding: 4px;
+}
+
+.crm-create-new-list-inner, .crm-create-new-list-inner ul {
+  width: 160px !important;
+}

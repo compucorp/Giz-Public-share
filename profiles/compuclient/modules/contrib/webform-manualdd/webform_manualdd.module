@@ -1,0 +1,219 @@
+<?php
+
+/**
+ * Implements of hook form_alter()
+ */
+function webform_manualdd_form_alter(&$form, &$form_state, $form_id) {
+  if ($form_id == 'wf_crm_configure_form') {
+
+    //  checks if extension exist
+    civicrm_initialize();
+    $result = civicrm_api3('Extension', 'get', [
+      'full_name' => "uk.co.compucorp.manualdirectdebit",
+      'sequential' => "1",
+    ]);
+
+    if ($result['count'] < 0 && $result['values'][0]['statusLabel'] != 'Enabled') {
+      return FALSE;
+    }
+
+    //  gets Payment Processor
+    $paymentProcessor = civicrm_api3('PaymentProcessor', 'getvalue', [
+      'return' => "id",
+      'name' => "Direct Debit",
+      'is_test' => 0,
+    ]);
+
+    //  gets custom Fields
+    $directDebitMandateCustomFields = civicrm_api3('CustomField', 'get', [
+      'sequential' => 1,
+      'custom_group_id' => "direct_debit_mandate",
+    ]);
+
+    //  checks if Payment Processor and  Direct Debit Mandate custom fields exist
+    if (!$directDebitMandateCustomFields['count'] || empty($paymentProcessor)) {
+      return FALSE;
+    }
+
+    $directDebitMandateCustomGroupId = 0;
+    $requiredFields = [];
+    $searchFields = [
+      'bank_name',
+      'account_holder_name',
+      'ac_number',
+      'sort_code',
+      'dd_code',
+      'dd_ref',
+      'start_date',
+      'originator_number',
+    ];
+
+    // finds id of direct debit mandate custom group and required field
+    foreach ($directDebitMandateCustomFields['values'] as $value) {
+      if (!$directDebitMandateCustomGroupId) {
+        $directDebitMandateCustomGroupId = $value['custom_group_id'];
+      }
+
+      if (in_array($value['name'], $searchFields)) {
+        // find which field is required
+        $requiredFields[$value['name']] = $value['id'];
+      }
+    }
+
+    // settings for js
+    $settings = [
+      'webformManualDirectDebit' => [
+        'paymentProcessorId' => $paymentProcessor,
+        'customGroupId' => $directDebitMandateCustomGroupId,
+      ],
+    ];
+    drupal_add_js($settings, 'setting');
+    drupal_add_js(drupal_get_path('module', 'webform_manualdd') . '/js/webform_manualdd.js');
+
+    //finds number of contacts
+    $numberOfContacts = $form['number_of_contacts']['#default_value'];
+
+    // sets   required fields and 'checked' attributes for each contacts
+    for ($i = 1; $i <= $numberOfContacts; $i++) {
+      $amountOfMandatesForCurrentUser = $form['contact_' . $i]['contact_' . $i . '_number_of_cg' . $directDebitMandateCustomGroupId]['#default_value'];
+      if (!isset($amountOfMandatesForCurrentUser)) {
+        continue;
+      }
+      for ($j = 1; $j <= $amountOfMandatesForCurrentUser; $j++) {
+        foreach ($requiredFields as $requiredField) {
+          $form['contact_' . $i][$i . 'cg' . $directDebitMandateCustomGroupId . '_wrapper'][$i . 'cg' . $directDebitMandateCustomGroupId . $j . '_fieldset']['civicrm_' . $i . '_contact_' . $j . '_cg' . $directDebitMandateCustomGroupId . '_custom_' . $requiredField]['#attributes']['checked'] = 'checked';
+          $form['contact_' . $i][$i . 'cg' . $directDebitMandateCustomGroupId . '_wrapper'][$i . 'cg' . $directDebitMandateCustomGroupId . $j . '_fieldset']['civicrm_' . $i . '_contact_' . $j . '_cg' . $directDebitMandateCustomGroupId . '_custom_' . $requiredField]['#required'] = TRUE;
+          $form['contact_' . $i][$i . 'cg' . $directDebitMandateCustomGroupId . '_wrapper'][$i . 'cg' . $directDebitMandateCustomGroupId . $j . '_fieldset']['civicrm_' . $i . '_contact_' . $j . '_cg' . $directDebitMandateCustomGroupId . '_createmode']['#default_value'] = 1;
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Implements webformmembershipextras_preCreatingUpfrontContributions
+ * hook that is defined inside "Webform CiviCRM Membership Extras" module
+ * to allow us to attach the recurring contribution and the first
+ * installment to the created mandate, and to allow us to alter the
+ * installments receive date to follow Direct Debit dates calculation
+ * logic, in case the user is paying with Direct Debit payment processor,
+ * right before creating the rest of the installments.
+ *
+ * @param object $node
+ * @param int $contributionRecurId
+ */
+function webform_manualdd_webformmembershipextras_preCreatingUpfrontContributions($node, $contributionRecurId) {
+  $isDirectDebitPaymentProcessor = _webformmanualdd_isPaymentPlanPaidWithDirectDebit($contributionRecurId);
+  if (!$isDirectDebitPaymentProcessor) {
+    return;
+  }
+
+  $contactId = _webformmanualdd_getContactId($node);
+  _webformmanualdd_attachMandateToPayment($contactId);
+  _webformmanualdd_updatePaymentDates($contributionRecurId);
+}
+
+/**
+ * Checks if the payment plan is paid with direct debit
+ * or not.
+ *
+ * @param int $contributionRecurId
+ * @return bool
+ */
+function _webformmanualdd_isPaymentPlanPaidWithDirectDebit($contributionRecurId) {
+  $paymentProcessorId = civicrm_api3('ContributionRecur', 'get', [
+    'sequential' => 1,
+    'return' => ['payment_processor_id'],
+    'id' => $contributionRecurId,
+  ]);
+  if (empty($paymentProcessorId['values'][0]['payment_processor_id'])) {
+    return FALSE;
+  }
+  $paymentProcessorId = $paymentProcessorId['values'][0]['payment_processor_id'];
+
+  $paymentProcessorName = civicrm_api3('PaymentProcessor', 'get', [
+    'sequential' => 1,
+    'return' => ['name'],
+    'id' => $paymentProcessorId,
+  ]);
+  if (empty($paymentProcessorName ['values'][0]['name'])) {
+    return FALSE;
+  }
+  $paymentProcessorName = $paymentProcessorName['values'][0]['name'];
+
+  return $paymentProcessorName === 'Direct Debit';
+}
+
+/**
+ * Gets the CiviCRM contact associated with the
+ * webform submission.
+ *
+ * @param object $node
+ * @return int|null
+ */
+function _webformmanualdd_getContactId($node) {
+  $civiWebformEntityProperty = _membershipextras_getCiviWebformPostprocessorPropertyValue($node, 'ent');
+
+  if (empty($civiWebformEntityProperty['contact'][1]['id'])) {
+    return NULL;
+  }
+
+  return $civiWebformEntityProperty['contact'][1]['id'];
+}
+
+/**
+ * Attaches the mandate to both the first installment and the recurring contribution.
+ *
+ * @param $contactId
+ */
+function _webformmanualdd_attachMandateToPayment($contactId) {
+  $storageManager = new CRM_ManualDirectDebit_Common_MandateStorageManager();
+  $mandateId = $storageManager->getLastInsertedMandateId($contactId);
+  $storageManager->assignMandate($mandateId, $contactId);
+}
+
+/**
+ * Updates both the first installment receive date and the recurring contribution start date
+ * to follow Direct Debit dates calculation logic.
+ *
+ * @param int $contributionRecurId
+ */
+function _webformmanualdd_updatePaymentDates($contributionRecurId) {
+  $hookParams = [
+    'payment_instrument_id' => 'direct_debit',
+  ];
+
+  // If it is a monthly or quarterly, then there is only one (the first)
+  // installment at this point, if it is annual, then the first installment
+  // in the new term (in case or renewal) is the last contribution attached
+  // to the recurring contribution, and that is why we order by 'id DESC' with 'limit => 1'.
+  $firstInstallment = civicrm_api3('Contribution', 'get', [
+    'sequential' => 1,
+    'contribution_recur_id' => $contributionRecurId,
+    'options' => ['sort' => 'id DESC', 'limit' => 1],
+  ])['values'][0];
+  $firstInstallmentReceiveDate = $firstInstallment['receive_date'];
+
+  // calling the hook will alter the value $firstInstallmentReceiveDate to follow direct debit dates logic.
+  $dispatcher = new CRM_MembershipExtras_Hook_CustomDispatch_CalculateContributionReceiveDate(1, $firstInstallmentReceiveDate, $hookParams);
+  $dispatcher->dispatch();
+
+  $frequencyUnit = civicrm_api3('ContributionRecur', 'getvalue', [
+    'return' => 'frequency_unit',
+    'id' => $contributionRecurId,
+  ]);
+  $newCycleDay = CRM_MembershipExtras_Service_CycleDayCalculator::calculate($firstInstallmentReceiveDate, $frequencyUnit);
+
+  civicrm_api3('Contribution', 'create', [
+    'sequential' => 1,
+    'id' => $firstInstallment['id'],
+    'receive_date' => $firstInstallmentReceiveDate,
+  ]);
+
+  civicrm_api3('ContributionRecur', 'create', [
+    'sequential' => 1,
+    'id' => $contributionRecurId,
+    'start_date' => $firstInstallmentReceiveDate,
+    'cycle_day' => $newCycleDay
+  ]);
+}

@@ -1,0 +1,57 @@
+.civicase__activity-panel__core_container {
+  .civiawards__crm-popup__container {
+    .panel {
+      margin-bottom: 0;
+      margin-top: 0;
+    }
+
+    .panel-body {
+      margin-bottom: 0;
+      margin-top: 0;
+      padding-bottom: 10px;
+    }
+
+    .form-group {
+      margin: 0;
+      padding-left: 10px;
+      padding-top: 8px;
+    }
+
+    label {
+      color: $crm-gray-matte;
+      font-size: $font-size-small;
+      font-weight: $font-weight-content;
+    }
+
+    .crm-button-type-cancel {
+      display: none;
+    }
+
+    .crm-submit-buttons {
+      position: initial;
+    }
+  }
+
+  .civiawards__payments-form__attachments {
+    .panel-body {
+      padding: 15px;
+    }
+  }
+
+  .civiawards__payments-form {
+    .civiawards__payments-form__label {
+      width: 150px;
+    }
+  }
+}
+
+.civicase__activity-panel--Applicant_Review,
+.civicase__activity-panel--Awards_Payment {
+  > .panel > .panel-body {
+    margin-bottom: 0;
+  }
+
+  .civicase__activity-panel__core_container {
+    min-height: auto;
+  }
+}

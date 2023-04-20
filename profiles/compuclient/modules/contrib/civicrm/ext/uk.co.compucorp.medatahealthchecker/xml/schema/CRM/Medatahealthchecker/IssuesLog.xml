@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="iso-8859-1" ?>
+
+<table>
+  <base>CRM/Medatahealthchecker</base>
+  <class>IssuesLog</class>
+  <name>medatahealthchecker_issues_log</name>
+  <log>true</log>
+
+  <field>
+    <name>id</name>
+    <title>Id</title>
+    <type>int unsigned</type>
+    <required>true</required>
+    <html>
+      <type>Number</type>
+    </html>
+  </field>
+  <primaryKey>
+    <name>id</name>
+    <autoincrement>true</autoincrement>
+  </primaryKey>
+
+  <field>
+    <name>entity_id</name>
+    <title>Entity Id</title>
+    <type>int unsigned</type>
+    <required>true</required>
+  </field>
+
+  <field>
+    <name>entity_table</name>
+    <title>Entity table</title>
+    <type>varchar</type>
+    <length>500</length>
+    <required>true</required>
+  </field>
+
+  <field>
+    <name>error_code</name>
+    <title>Error code</title>
+    <type>int unsigned</type>
+    <required>true</required>
+  </field>
+  <index>
+    <name>index_error_code</name>
+    <fieldName>error_code</fieldName>
+  </index>
+
+  <field>
+    <name>contact_id</name>
+    <title>Contact Id</title>
+    <type>int unsigned</type>
+    <required>true</required>
+    <comment>FK to Contact</comment>
+  </field>
+  <foreignKey>
+    <name>contact_id</name>
+    <table>civicrm_contact</table>
+    <key>id</key>
+    <onDelete>CASCADE</onDelete>
+  </foreignKey>
+
+  <field>
+    <name>created_at</name>
+    <title>Created At</title>
+    <type>timestamp</type>
+    <default>CURRENT_TIMESTAMP</default>
+  </field>
+</table>

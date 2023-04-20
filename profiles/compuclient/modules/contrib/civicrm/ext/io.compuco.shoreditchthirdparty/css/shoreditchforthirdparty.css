@@ -1,0 +1,55 @@
+/** "Campaign Manger" extension style fixes: https://civicrm.org/extensions/campaign-manager **/
+#crm-campaign-actions-list {
+  position: absolute;
+  display: block;
+  width: 256px;
+  left: 128;
+  z-index: 15;
+  -webkit-box-shadow:0 3px 18px 0 rgba(48,40,40,0.25);
+  box-shadow:0 3px 18px 0 rgba(48,40,40,0.25);
+  background:none;
+  border-radius:2px;
+  padding:0;top:36px
+}
+
+.crm-campaign-actions-list-inner {
+  background-color: #2f2f2e;
+  padding: 4px;
+}
+
+.crm-create-new-list-inner, .crm-create-new-list-inner ul {
+  width: 160px !important;
+}
+
+#crm-campaign-actions-list div[class*='-list-inner'] {
+  background:#fff;
+  border-radius:2px;
+  padding:0
+}
+
+#crm-campaign-actions-list div[class*='-list-inner'] li {
+  padding:0
+}
+
+#crm-campaign-actions-list div[class*='-list-inner'] li a {
+  color:#4d4d69;
+  font-size:13px;
+  line-height:18px;
+  padding:10px 20px
+}
+
+#crm-campaign-actions-list div[class*='-list-inner'] li a:hover {
+  background:#e8eef0
+}
+#campaign_container .crm-actions-ribbon {
+  margin-bottom: 20px !important;
+}
+
+#campaign_container #info {
+  margin: 0 !important;
+}
+
+#crm-campaign-actions-wrapper {
+  position: relative;
+  float: left;
+}

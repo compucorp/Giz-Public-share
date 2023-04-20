@@ -1,0 +1,6 @@
+.CRM_Invoicehelper_Admin_Form_Setting td.label {
+  min-width: 210px;
+}
+.CRM_Invoicehelper_Admin_Form_Setting td input.crm-form-text {
+  width: 30em;
+}

@@ -1,0 +1,11 @@
+# CiviCRM Proximity
+Geographical proximity search for CiviCRM.
+Based on the original code by @qjensen: https://github.com/qjensen/CiviCRM-Proximity-Search
+
+The latest changes allow the module to be compatible with Drupal 7, and also add other improvements, like providing an
+admin form for entering the API Key for the Google service.
+
+# Configuration
+
+Before enabling the module it is necessary to enable geocoding in your CiviCRM
+database and run the script that populates those fields.

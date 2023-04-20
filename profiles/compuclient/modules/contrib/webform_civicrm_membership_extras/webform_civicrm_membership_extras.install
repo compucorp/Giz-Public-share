@@ -1,0 +1,37 @@
+<?php
+
+function webform_civicrm_membership_extras_install() {
+  db_query("UPDATE {system} SET weight = 1000 WHERE name = 'webform_civicrm_membership_extras'");
+  _webform_civicrm_membershipextras_create_discount_settings_table();
+}
+
+/**
+ * Creates the webform_discount_settings table
+ */
+function webform_civicrm_membership_extras_update_7000() {
+  _webform_civicrm_membershipextras_create_discount_settings_table();
+}
+
+function _webform_civicrm_membershipextras_create_discount_settings_table() {
+  $schema['webform_discount_settings'] = array(
+    'description' => 'Discount settings for individual Webform nodes.',
+    'fields' => array(
+      'nid' => array(
+        'description' => 'The node identifier of a webform.',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'enabled' => array(
+        'description' => 'Boolean flag for if this component is enabled or not for discounts.',
+        'type' => 'int',
+        'size' => 'tiny',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'primary key' => array('nid'),
+  );
+
+  db_create_table('webform_discount_settings', $schema['webform_discount_settings']);
+}

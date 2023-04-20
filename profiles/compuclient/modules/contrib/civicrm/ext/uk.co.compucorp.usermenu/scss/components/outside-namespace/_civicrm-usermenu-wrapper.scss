@@ -1,0 +1,35 @@
+$drupal-menu-height: 30px;
+
+#civicrm-usermenu-wrapper {
+  background: $crm-white;
+  border-bottom: 1px solid $crm-grayblue-dark;
+  box-shadow: $box-shadow;
+  position: fixed;
+  top: 0;
+  width: 100%;
+  z-index: 1000;
+
+  #civicrm-menu {
+    border-bottom: 0;
+    box-shadow: none;
+    float: left;
+    position: static !important;
+    width: auto;
+  }
+
+  .civicrm-usermenu {
+    float: right;
+  }
+}
+
+.crm-menubar-hidden #civicrm-usermenu-wrapper {
+  .civicrm-usermenu {
+    display: none;
+  }
+}
+
+.crm-menubar-below-cms-menu #civicrm-usermenu-wrapper {
+  position: fixed;
+  top: $drupal-menu-height;
+  z-index: $zindex-navbar / 2;
+}

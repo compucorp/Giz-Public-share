@@ -1,0 +1,12 @@
+name = Language Switcher Dropdown Hideout
+package = Multilingual
+description = Allow to hide specific languages from the switcher for certain roles.
+dependencies[] = locale
+configure = 'admin/structure/block'
+core = 7.x
+
+; Information added by Drupal.org packaging script on 2020-12-30
+version = "7.x-2.7"
+core = "7.x"
+project = "lang_dropdown"
+datestamp = "1609334707"

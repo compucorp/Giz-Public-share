@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<menu>
+  <item>
+    <path>civicrm/contribute/invoice/email</path>
+    <page_callback>CRM_Invoicehelper_Contribute_Form_Task_Invoice</page_callback>
+    <title>Contribute_Form_Task_Invoice</title>
+    <access_arguments>access CiviContribute</access_arguments>
+    <page_type>1</page_type>
+    <weight>630</weight>
+    <component>CiviContribute</component>
+  </item>
+  <item>
+    <path>civicrm/admin/setting/invoicehelper</path>
+    <page_callback>CRM_Invoicehelper_Admin_Form_Setting</page_callback>
+    <title>Invoicehelper Settings</title>
+    <access_arguments>administer CiviCRM</access_arguments>
+  </item>
+</menu>

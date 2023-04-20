@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="iso-8859-1" ?>
+
+<CustomData>
+  <OptionGroups>
+    <OptionGroup>
+      <name>manageletterheads_available_for</name>
+      <title>Letterhead Available For Options</title>
+      <is_reserved>1</is_reserved>
+      <is_active>1</is_active>
+    </OptionGroup>
+  </OptionGroups>
+
+  <OptionValues>
+    <OptionValue>
+      <label>Emails</label>
+      <value>1</value>
+      <name>emails</name>
+      <is_default>0</is_default>
+      <weight>0</weight>
+      <is_optgroup>0</is_optgroup>
+      <is_reserved>1</is_reserved>
+      <is_active>1</is_active>
+      <option_group_name>manageletterheads_available_for</option_group_name>
+    </OptionValue>
+
+    <OptionValue>
+      <label>PDF letters</label>
+      <value>2</value>
+      <name>pdf_letters</name>
+      <is_default>0</is_default>
+      <weight>1</weight>
+      <is_optgroup>0</is_optgroup>
+      <is_reserved>1</is_reserved>
+      <is_active>1</is_active>
+      <option_group_name>manageletterheads_available_for</option_group_name>
+    </OptionValue>
+
+  </OptionValues>
+</CustomData>

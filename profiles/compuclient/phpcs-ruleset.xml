@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ruleset name="PHPCS Drupal Ruleset">
+    <description>PHP CodeSniffer configuration.</description>
+    <arg name="extensions" value="php,module,inc,install,theme"/>
+    <config name="drupal_core_version" value="7"/>
+    <!-- Drupal sniffs -->
+    <rule ref="Drupal">
+        <exclude name="Drupal.Files.TxtFileLineLength.TooLong"/>
+    </rule>
+</ruleset>

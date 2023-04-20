@@ -1,0 +1,14 @@
+name = Webform CiviCRM Membership Extras
+description = Support module for uk.co.compucorp.membershipextras that handle the creation of upfront contributions after submitting a civicrm webform, CiviDiscount integration and more.
+version = 7.x-5.4
+dependencies[] = webform_civicrm
+package = MembershipExtras
+core = 7.x
+
+; Custom PHP classes
+files[] = includes/wf_me_cividiscount_ext_helper.inc
+files[] = includes/wf_me_discount_settings.inc
+files[] = includes/wf_me_discount_code_validator.inc
+files[] = includes/wf_me_discount_amount_helper.inc
+files[] = includes/wf_me_discount_civicrm_apiwrapper.inc
+files[] = includes/wf_me_prorated_billing_apiwrapper.inc

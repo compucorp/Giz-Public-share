@@ -1,0 +1,35 @@
+{htxt id="allowed-membership-types-title"}
+  {ts}Allowed Membership Types{/ts}
+{/htxt}
+{htxt id="allowed-membership-types"}
+{capture assign=membersOnlyEventConfigPath}{crmURL p="civicrm/admin/membersonlyevent"}{/capture}
+{ts 1=$membersOnlyEventConfigPath}You can set the membership types that will be able to register participants for this event here. Note that users with a CMS role with the permission "Can register for members only events irrespective of membership status" will be able to register to the event regardless of your setting here. You can also set whether the membership will need to be current either at the time of booking or optionally also at the event start date <a href="%1">here{/ts}</a>
+{/htxt}
+{htxt id="allowed-groups-title"}
+  {ts}Allowed Groups{/ts}
+{/htxt}
+{htxt id="allowed-groups"}
+{capture assign=membersOnlyEventConfigPath}{crmURL p="civicrm/admin/membersonlyevent"}{/capture}
+{ts 1=$membersOnlyEventConfigPath}This allows you to select a Group or Smart Group to determine which users should be able to register for this event.{/ts}
+{/htxt}
+{htxt id="is-showing-custom-access-denied-message-title"}
+  {ts}Show a custom access denied message{/ts}
+{/htxt}
+{htxt id="is-showing-custom-access-denied-message"}
+{capture assign=membersOnlyEventConfigPath}{crmURL p="civicrm/admin/membersonlyevent"}{/capture}
+{ts 1=$membersOnlyEventConfigPath}This allows you to add a custom access denied message for this event.{/ts}
+{/htxt}
+{htxt id="is-showing-login-block-title"}
+  {ts}Show login block to anonymous users{/ts}
+{/htxt}
+{htxt id="is-showing-login-block"}
+{capture assign=membersOnlyEventConfigPath}{crmURL p="civicrm/admin/membersonlyevent"}{/capture}
+{ts 1=$membersOnlyEventConfigPath}This allows you to choose a Login block to display and add a custom message to be displayed on the block for anonymous users{/ts}
+{/htxt}
+{htxt id="is-showing-purchase-membership-block-title"}
+  {ts}Show a purchase membership block when access denied{/ts}
+{/htxt}
+{htxt id="is-showing-purchase-membership-block"}
+{capture assign=membersOnlyEventConfigPath}{crmURL p="civicrm/admin/membersonlyevent"}{/capture}
+{ts 1=$membersOnlyEventConfigPath}This allows you to add a label, custom message and  link to be displayed on the event{/ts}
+{/htxt}

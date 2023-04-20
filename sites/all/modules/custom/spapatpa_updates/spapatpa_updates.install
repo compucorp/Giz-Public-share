@@ -1,0 +1,7 @@
+<?php
+/**
+ * Include all the update files
+ */
+foreach (glob(__DIR__ . '/updates/*.php') as $updateFile) {
+  require_once $updateFile;
+}

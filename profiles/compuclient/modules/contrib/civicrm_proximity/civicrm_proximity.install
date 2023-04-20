@@ -1,0 +1,67 @@
+<?php
+
+/**
+ * @file
+ * Install, update and uninstall functions for the civicrm_proximity module.
+ */
+
+/**
+ * Implements hook_schema_alter().
+ */
+function civicrm_proximity_schema_alter(&$schema) {
+  if (!civicrm_initialize()) {
+    return;
+  }
+
+  if (isset($schema['civicrm_address'])) {
+    $schema['civicrm_address']['fields']['distance'] = [
+      'type' => 'float',
+      'size' => 'big',
+      'not null' => TRUE,
+      'unsigned' => TRUE,
+      'default' => 0,
+      'description' => 'Field added by civicrm_proximity.',
+    ];
+  }
+
+  return $schema;
+}
+
+/**
+ * Implements hook_install().
+ */
+function civicrm_proximity_install() {
+  if (!civicrm_initialize()) {
+    return;
+  }
+
+  $schema['civicrm_address'] = [];
+  civicrm_proximity_schema_alter($schema);
+
+  foreach ($schema['civicrm_address']['fields'] as $field => $spec) {
+    if (db_field_exists('civicrm_address', $field)) {
+      watchdog('system', 'Module install: Attempt to recreate field: "%field", when it already exists.', ['%field' => $field], WATCHDOG_WARNING);
+    }
+    else {
+      db_add_field('civicrm_address', $field, $spec);
+
+      if (CRM_Core_Config::singleton()->logging) {
+        // This fixes the logging tables, because of this new field added.
+        $schema = new CRM_Logging_Schema();
+        $schema->fixSchemaDifferences();
+      }
+    }
+  }
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function civicrm_proximity_uninstall() {
+  $schema['civicrm_address'] = [];
+  civicrm_proximity_schema_alter($schema);
+
+  foreach ($schema['civicrm_address']['fields'] as $field => $specs) {
+    db_drop_field('civicrm_address', $field);
+  }
+}

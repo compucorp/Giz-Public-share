@@ -1,0 +1,13 @@
+name = Webform Single Submit
+description = Prevent webforms from performing multiple submit actions.
+dependencies[] = webform
+version = 7x-1.0
+core = 7.x
+
+scripts[] = js/script.js
+
+; Information added by Drupal.org packaging script on 2018-08-12
+version = "7.x-1.0"
+core = "7.x"
+project = "webform_single_submit"
+datestamp = "1534046583"

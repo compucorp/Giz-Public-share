@@ -1,0 +1,69 @@
+<?xml version="1.0"?>
+<menu>
+  <item>
+    <path>civicrm/admin/payment_plan_settings</path>
+    <page_callback>CRM_MembershipExtras_Form_PaymentPlanSettings</page_callback>
+    <title>Payment Plan Settings</title>
+    <access_arguments>administer CiviCRM;administer MembershipExtras</access_arguments>
+  </item>
+  <item>
+    <path>civicrm/admin/member/automated-upgrade-rules</path>
+    <page_callback>CRM_MembershipExtras_Page_AutomatedMembershipUpgradeRule</page_callback>
+    <title>Membership Automated Upgrade Rules</title>
+    <access_arguments>administer CiviCRM;administer MembershipExtras</access_arguments>
+  </item>
+  <item>
+    <path>civicrm/admin/member/automated-upgrade-rules/add</path>
+    <page_callback>CRM_MembershipExtras_Form_AutomatedUpgradeRule</page_callback>
+    <title>New Automated Membership Upgrade Rule</title>
+    <access_arguments>administer CiviCRM;administer MembershipExtras</access_arguments>
+  </item>
+  <item>
+    <path>civicrm/admin/member/automated-upgrade-rules/delete</path>
+    <page_callback>CRM_MembershipExtras_Form_AutomatedUpgradeRuleDelete</page_callback>
+    <title>Delete Automated Membership Upgrade Rule</title>
+    <access_arguments>administer CiviCRM;administer MembershipExtras</access_arguments>
+  </item>
+  <item>
+    <path>civicrm/recurring-contribution/cancel</path>
+    <page_callback>CRM_MembershipExtras_Form_RecurringContribution_Cancel</page_callback>
+    <title>Cancel Recurring Contribution</title>
+    <access_arguments>edit contributions,edit memberships</access_arguments>
+  </item>
+  <item>
+    <path>civicrm/recurring-contribution/edit-lineitems</path>
+    <page_callback>CRM_MembershipExtras_Page_EditContributionRecurLineItems</page_callback>
+    <title>EditContributionRecurLineItems</title>
+    <access_arguments>edit contributions,edit memberships</access_arguments>
+  </item>
+  <item>
+    <path>civicrm/recurring-contribution/remove-lineitems</path>
+    <page_callback>CRM_MembershipExtras_Form_RecurringContribution_RemoveLineItems</page_callback>
+    <title>RecurringContribution_RemoveLineItems</title>
+    <access_arguments>edit contributions,edit memberships</access_arguments>
+  </item>
+  <item>
+    <path>civicrm/recurring-contribution/add-membership-lineitem</path>
+    <page_callback>CRM_MembershipExtras_Form_RecurringContribution_AddMembershipLineItem</page_callback>
+    <title>RecurringContribution_AddMembershipLineItem</title>
+    <access_arguments>edit contributions,edit memberships</access_arguments>
+  </item>
+  <item>
+    <path>civicrm/recurring-contribution/add-donation-lineitem</path>
+    <page_callback>CRM_MembershipExtras_Form_RecurringContribution_AddDonationLineItem</page_callback>
+    <title>RecurringContribution_AddDonationLineItem</title>
+    <access_arguments>edit contributions,edit memberships</access_arguments>
+  </item>
+  <item>
+    <path>civicrm/contribution/duplicate-contribution</path>
+    <page_callback>CRM_MembershipExtras_Form_Contribution_Action_Duplicate</page_callback>
+    <title>Cancel Recurring Contribution</title>
+    <access_arguments>edit contributions</access_arguments>
+  </item>
+  <item>
+    <path>civicrm/member/instalment-schedule</path>
+    <page_callback>CRM_MembershipExtras_Page_InstalmentSchedule</page_callback>
+    <title>InstalmentSchedule</title>
+    <access_arguments>edit memberships</access_arguments>
+  </item>
+</menu>

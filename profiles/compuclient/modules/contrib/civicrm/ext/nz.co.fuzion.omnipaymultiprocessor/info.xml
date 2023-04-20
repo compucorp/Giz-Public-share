@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<extension key="nz.co.fuzion.omnipaymultiprocessor" type="module">
+  <file>omnipaymultiprocessor</file>
+  <name>Omnipay multiprocessor support (Sagepay version)</name>
+  <description>Support for Multiple processors using OmniPay library</description>
+  <license>AGPL</license>
+  <maintainer>
+    <author>eileen</author>
+    <email>eileen@fuzion.co.nz</email>
+  </maintainer>
+  <urls>
+    <url desc="Main Extension Page">https://github.com/eileenmcnaughton/nz.co.fuzion.omnipaymultiprocessor</url>
+    <url desc="Documentation">https://civicrm.org/blogs/eileen/rethinking-payment-processing</url>
+    <url desc="Support">http://forum.civicrm.org</url>
+    <url desc="Licensing">http://civicrm.org/licensing</url>
+  </urls>
+  <releaseDate>2019-02-25</releaseDate>
+  <version>2.6</version>
+  <develStage>stable</develStage>
+  <compatibility>
+    <ver>5.13</ver>
+  </compatibility>
+  <comments>This module integrates the omnipay library with CiviCRM</comments>
+  <civix>
+    <namespace>CRM/Omnipaymultiprocessor</namespace>
+  </civix>
+</extension>

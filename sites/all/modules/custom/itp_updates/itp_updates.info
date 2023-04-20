@@ -1,0 +1,5 @@
+name = ITP Updates Module
+description = This module contains upgrader scripts for this project
+package = "ITP"
+core = 7.x
+version = 7.x-1.0

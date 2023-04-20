@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<extension key="uk.co.compucorp.membershipextrasdefaultconfig" type="module">
+  <file>membershipextrasdefaultconfig</file>
+  <name>Membership Extras Default Configurations</name>
+  <description>Default configurations for Membership Extras Extension.</description>
+  <license>AGPL-3.0</license>
+  <maintainer>
+    <author>Compuco</author>
+    <email>hello@compuco.io</email>
+  </maintainer>
+  <releaseDate>2022-10-19</releaseDate>
+  <version>5.4.0</version>
+  <develStage>stable</develStage>
+  <compatibility>
+    <ver>5.39</ver>
+  </compatibility>
+  <comments>
+    Supported CiviCRM versions  :
+     - 5.39.1
+  </comments>
+  <classloader>
+    <psr4 prefix="Civi\" path="Civi"/>
+  </classloader>
+  <civix>
+    <namespace>CRM/Membershipextrasdefaultconfig</namespace>
+  </civix>
+  <requires>
+    <ext>uk.co.compucorp.membershipextras</ext>
+  </requires>
+</extension>

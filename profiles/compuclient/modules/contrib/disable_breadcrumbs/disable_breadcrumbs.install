@@ -1,0 +1,69 @@
+<?php
+/**
+ * @file
+ * Install file for the disable breadcrumbs module.
+ */
+
+/**
+ * Implements hook_schema().
+ */
+function disable_breadcrumbs_schema() {
+  $schema['disable_breadcrumbs'] = array(
+    'fields' => array(
+      'nid' => array(
+        'description' => 'The node ID.',
+        'type' => 'int',
+        'not null' => TRUE,
+      ),
+      'disable_breadcrumb' => array(
+        'description' => 'Disable breadcrumb status.',
+        'type' => 'int',
+        'size' => 'small',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'foreign keys' => array(
+      'node' => array(
+        'table' => 'node',
+        'columns' => array('nid' => 'nid'),
+       ),
+     ),
+    'primary key' => array('nid'),
+  );
+  return $schema;
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function disable_breadcrumbs_uninstall() {
+  variable_del('disable_breadcrumbs_node_types');
+  variable_del('disable_breadcrumbs_node_types_all');
+  variable_del('disable_breadcrumbs_node_paths');
+}
+
+/**
+ * Add the nid foreign key to the disable breadcrumbs table to avoid issues
+ * with node_access queries.
+ */
+function disable_breadcrumbs_update_7101() {
+  // Add the foreign key by changing the column. Because we are dealing with
+  // the primary key column that has to be dropped first.
+  db_drop_primary_key('disable_breadcrumbs');
+  db_change_field('disable_breadcrumbs', 'nid', 'nid',
+    array(
+      'description' => 'The node ID.',
+      'type' => 'int',
+      'not null' => FALSE,
+    ),
+    array(
+      'foreign keys' => array(
+        'node' => array(
+          'table' => 'node',
+          'columns' => array('nid' => 'nid'),
+         ),
+       ),
+      'primary key' => array('nid')
+    ));
+}

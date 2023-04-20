@@ -1,0 +1,5 @@
+<?php
+
+function webform_single_submit_form_webform_client_form_alter(&$form) {
+  $form['#attributes']['class'][] = 'webform-single-submit';
+}

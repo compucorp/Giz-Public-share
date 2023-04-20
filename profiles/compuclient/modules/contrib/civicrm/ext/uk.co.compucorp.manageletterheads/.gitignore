@@ -1,0 +1,4 @@
+.DS_Store
+bin/*
+!bin/install-php-linter
+node_modules

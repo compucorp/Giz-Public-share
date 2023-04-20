@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<extension key="biz.lcdservices.civizoom" type="module">
+  <file>civizoom</file>
+  <name>CiviZoom</name>
+  <description>Zoom integration with CiviCRM Events</description>
+  <license>AGPL-3.0</license>
+  <maintainer>
+    <author>Lighthouse Consulting and Design, Inc.</author>
+    <email>dev@lcdservices.biz</email>
+  </maintainer>
+  <urls>
+    <url desc="Main Extension Page">https://github.com/lcdservices/biz.lcdservices.civizoom</url>
+    <url desc="Documentation">https://github.com/lcdservices/biz.lcdservices.civizoom</url>
+    <url desc="Support">https://github.com/lcdservices/biz.lcdservices.civizoom/issues</url>
+    <url desc="Licensing">http://www.gnu.org/licenses/agpl-3.0.html</url>
+  </urls>
+  <releaseDate>2020-11-04</releaseDate>
+  <version>2.2</version>
+  <develStage>stable</develStage>
+  <compatibility>
+    <ver>5.29</ver>
+  </compatibility>
+  <comments></comments>
+  <comments></comments>
+  <civix>
+    <namespace>CRM/Civizoom</namespace>
+  </civix>
+</extension>

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="iso-8859-1" ?>
+ <extension key="uk.co.compucorp.civicrm.giftaid" type="module">
+  <downloadUrl>https://github.com/Compucorp/uk.co.compucorp.civicrm.giftaid</downloadUrl>
+  <file>civigiftaid</file>
+  <name>CiviCRM UK GiftAid</name>
+  <description>
+    CiviCRM support for Gift Aid.
+    The extension comprises a couple of custom data sets to hold all Gift Aid data, a profile to use on contribution forms to collect this data, a task to batch 'gift-aidable' contributions and a report to submit batches to HMRC.
+  </description>
+  <urls>
+    <url desc="Main Extension Page">http://civicrm.org/extensions/gift-aid-extension-uk</url>
+    <url desc="Documentation">https://github.com/compucorp/uk.co.compucorp.civicrm.giftaid</url>
+    <url desc="Support">http://forum.civicrm.org</url>
+    <url desc="Licensing">http://civicrm.org/licensing</url>
+  </urls>
+  <license>AGPL</license>
+  <maintainer>
+    <author>Erawat Chamanont, Jamie Novick, Guanhuan Chen, Robin Mitra</author>
+    <email>jamie@compucorp.co.uk</email>
+  </maintainer>
+  <releaseDate>2022-06-03</releaseDate>
+  <version>3.3.2</version>
+  <develStage>stable</develStage>
+  <compatibility>
+    <ver>5.35</ver>
+  </compatibility>
+  <comments>For support, please contact project team on the forums. (http://forum.civicrm.org) or create a new issue on https://github.com/compucorp/uk.co.compucorp.civicrm.giftaid/issues
+  </comments>
+  <civix>
+    <namespace>CRM/Civigiftaid</namespace>
+  </civix>
+</extension>

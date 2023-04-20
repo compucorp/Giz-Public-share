@@ -1,0 +1,5 @@
+name = INSU Updates Module
+description = This module contains upgrader scripts for this project
+package = "INSU"
+core = 7.x
+version = 7.x-1.0

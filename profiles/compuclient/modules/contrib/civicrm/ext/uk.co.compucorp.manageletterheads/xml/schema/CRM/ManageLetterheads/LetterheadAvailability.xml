@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="iso-8859-1" ?>
+
+<table>
+  <base>CRM/ManageLetterheads</base>
+  <class>LetterheadAvailability</class>
+  <name>civicrm_manageletterheads_letterhead_availability</name>
+  <comment>Store details about what the letterhead is available for</comment>
+  <log>true</log>
+
+  <field>
+    <name>id</name>
+    <type>int unsigned</type>
+    <required>true</required>
+    <comment>Unique LetterheadAvailability ID</comment>
+  </field>
+  <primaryKey>
+    <name>id</name>
+    <autoincrement>true</autoincrement>
+  </primaryKey>
+
+  <field>
+    <name>available_for</name>
+    <title>Available For</title>
+    <type>varchar</type>
+    <length>30</length>
+    <required>true</required>
+    <comment>One of the values of the manageletterheads_available_for option group</comment>
+    <pseudoconstant>
+      <optionGroupName>manageletterheads_available_for</optionGroupName>
+    </pseudoconstant>
+  </field>
+
+  <field>
+    <name>letterhead_id</name>
+    <title>Letterhead ID</title>
+    <type>int unsigned</type>
+    <required>true</required>
+    <comment>FK to Letterhead</comment>
+  </field>
+  <foreignKey>
+    <name>letterhead_id</name>
+    <table>civicrm_manageletterheads_letterhead</table>
+    <key>id</key>
+  </foreignKey>
+
+</table>
